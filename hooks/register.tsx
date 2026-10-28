@@ -22,6 +22,7 @@ let queue: Promise<unknown> = Promise.resolve()
 const fired = new Set<string>()
 const lastAt = new Map<string, number>()
 let lastByClaude = 0
+let testing = false
 
 const home = async ($: EngineInterface) => (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')) ?? '.'
 /** Where the user's own presets live: outside the plugin's folder, which an update replaces. */
@@ -124,6 +125,7 @@ const HELP = [
   '/alert new <name>               make a folder for a preset of yours and say where it is',
   '/alert sounds                   every case of sound, whether it is on and the preset has its file',
   '/alert play <sound>             hear one now (even if it is muted)',
+  '/alert test [preset]            hear all of them one after the other, saying which one is playing (muted ones too)',
   '/alert mute <sound>... | unmute <sound>... | unmute all',
   '/alert claude on | off          whether Claude may play sounds itself',
   '/alert log                      what the plugin saw lately (when a sound does not play)',
@@ -166,6 +168,34 @@ async function command($: EngineInterface, args: string): Promise<string> {
         lines.push(`${s.muted.includes(x.name) ? '[muted]' : '[on]   '} ${x.name.padEnd(14)} ${has ? '' : '(no file) '}${x.when}`)
       }
       return `Preset ${s.preset}:\n${lines.join('\n')}`
+    }
+    case 'test': {
+      const wanted = rest[0] ?? s.preset
+      const preset = (await presets($)).find(p => p.name.toLowerCase() === wanted.toLowerCase())
+      if (!preset) return `No preset "${wanted}". /alert presets lists them.`
+      if (testing) return 'A test is already running.'
+      testing = true
+      try {
+        const lines: string[] = []
+        for (const [i, x] of SOUNDS.entries()) {
+          const head = `${i + 1}/${SOUNDS.length} ${x.name}`
+          const file = await fileFor($, preset.name, x.name)
+          if (!file) {
+            lines.push(`${head}: (no file)`)
+            continue
+          }
+          // Each one is said while it plays: the status line, and a notice that stays a moment.
+          $.ui.status(`sound-alerts: ${head}`)
+          $.ui.toast(`${head}: ${x.when}`)
+          const line = await runPlayer($, file)
+          note(`${x.name} (test): ${line}`)
+          lines.push(`${head}: ${line.startsWith('ok:') ? 'played' : line.replace(/^error:/, 'not played: ')}  (${x.when})`)
+        }
+        return `Preset ${preset.name}:\n${lines.join('\n')}`
+      } finally {
+        testing = false
+        $.ui.status(undefined)
+      }
     }
     case 'play': {
       const name = rest[0] ?? ''

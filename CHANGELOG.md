@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+
+- **`/alert test [preset]`**: plays every sound of a preset one after the other, saying which one is playing, and lists them at the end (the ones the preset has no file for too).
+
 ## 0.1.0
 
 The first version.

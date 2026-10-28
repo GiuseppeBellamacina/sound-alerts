@@ -87,6 +87,7 @@ A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces o
 | `/alert new <name>` | Makes the folder for a preset of yours and says where it is. |
 | `/alert sounds` | Every case of sound: on or muted, and whether the preset has its file. |
 | `/alert play <sound>` | Plays one now, even if it is muted. |
+| `/alert test [preset]` | Plays all sixteen one after the other, muted ones too, saying which one is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
 | `/alert mute <sound>...` · `unmute <sound>...` · `unmute all` | Silences some sounds. `start` is muted at first. |
 | `/alert claude on` · `off` | Whether Claude may play sounds itself. |
 | `/alert log` | The last things the plugin saw. Read it when a sound does not play. |

@@ -19,6 +19,9 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
     const m = /\/presets(?:\/(soft|retro)(?:\/([a-z-]+)\.wav)?)?$/.exec(norm(path))
     return !!m && !norm(path).includes('/.claude/') && (m[2] === undefined || NAMES.includes(m[2]))
   }
+  const notices: string[] = []
+  on('ui.toast', (_, e) => (notices.push(JSON.stringify(e)), { value: undefined }) as never)
+  on('ui.status', () => ({ value: undefined }) as never)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('tool.register', (_, e) => ({ value: { tool: `mcp__sound-alerts__${e.name}` } }))
   const registered: string[] = []
@@ -50,7 +53,7 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   })
   // What the player was asked to play, as `preset/sound`.
   const played = () => runs.map(argv => /presets\/([\w-]+)\/([\w-]+)\.wav$/.exec(norm(argv.at(-1)!))?.slice(1).join('/') ?? argv.join(' '))
-  return { files, runs, clock, played, registered }
+  return { files, runs, clock, played, registered, notices }
 }
 
 const cmd = async ($: Engine, args: string) =>
@@ -236,6 +239,29 @@ test('a preset is a folder: the bundled ones, yours, and the one you made overri
   await done($)
   await clock.advance(100)
   expect(norm(runs.at(-1)!.at(-1)!)).toBe(`${USER}/soft/done.wav`)
+})
+
+test('/alert test plays every sound of a preset in turn, muted ones too, and says which', async ($, on) => {
+  const { files, played, notices } = engine(on)
+  await start($)
+  const out = await cmd($, 'test')
+  expect(played()).toEqual(NAMES.map(n => `soft/${n}`))
+  const lines = out.split('\n')
+  expect(lines[0]).toBe('Preset soft:')
+  expect(lines.length).toBe(NAMES.length + 1)
+  expect(lines[1]).toBe('1/16 done: played  (Claude finished its turn)')
+  expect(out).toMatch(/13\/16 start: played/)
+  expect(notices.length).toBe(NAMES.length)
+  expect(notices[0]).toContain('1/16 done')
+
+  // Another preset, named: only what it has.
+  files[`${USER}/pippo/done.wav`] = 'RIFF'
+  files[`${USER}/pippo/error.wav`] = 'RIFF'
+  const pippo = await cmd($, 'test pippo')
+  expect(played().slice(NAMES.length)).toEqual(['pippo/done', 'pippo/error'])
+  expect(pippo).toMatch(/2\/16 question: \(no file\)/)
+  expect(pippo).toMatch(/9\/16 error: played/)
+  expect(await cmd($, 'test nope')).toMatch(/No preset "nope"/)
 })
 
 test('/alert new makes the folder for a preset of yours and says where', async ($, on) => {
