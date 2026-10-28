@@ -75,13 +75,13 @@ test('the command is alert and the tool is registered, and nothing plays at the 
   await clock.advance(100)
   expect(registered).toEqual(['alert'])
   expect(played()).toEqual([])
-  expect(await cmd($, '')).toBe('sound-alerts is on; preset soft; muted: start; Claude may play sounds itself: yes.')
+  expect(await cmd($, '')).toBe('sound-alerts is on; preset soft; muted: start, task-done, agent-done; Claude may play sounds itself: yes.')
 })
 
 test('the start sound plays once it is unmuted', async ($, on) => {
   const { played, clock } = engine(on)
   await start($)
-  expect(await cmd($, 'unmute start')).toBe('Muted: none.')
+  expect(await cmd($, 'unmute start')).toBe('Muted: task-done, agent-done.')
   await start($)
   await clock.advance(100)
   expect(played()).toEqual(['soft/start'])
@@ -127,6 +127,11 @@ test('an interrupted turn is silent, an error and a refusal are not', async ($, 
 test('a subagent that ended plays agent-done, and several at once play it once', async ($, on) => {
   const { played, clock } = engine(on)
   await start($)
+  // Silent at first: it fires often during a long job.
+  await done($, { agentId: 'a0' })
+  await clock.advance(2_000)
+  expect(played()).toEqual([])
+  await cmd($, 'unmute agent-done')
   await done($, { agentId: 'a1' })
   await done($, { agentId: 'a2' })
   await done($, { agentId: 'a3' })
@@ -170,6 +175,7 @@ test('a test command that exits 0 plays tests-pass, one that fails plays tests-f
 test('a background task that finished plays task-done', async ($, on) => {
   const { played, clock } = engine(on)
   await start($)
+  await cmd($, 'unmute task-done')
   await $.prompt.submit({ text: '<task-notification><task-id>b1</task-id></task-notification>', origin: { kind: 'task-notification' } } as never)
   await $.prompt.submit({ text: 'hello', origin: { kind: 'composer' } } as never)
   await clock.advance(100)
@@ -193,7 +199,7 @@ test('the usage limits and the context window play their sounds once', async ($,
 test('off, a muted sound and /alert play', async ($, on) => {
   const { played, clock } = engine(on)
   await start($)
-  expect(await cmd($, 'mute done question')).toBe('Muted: start, done, question.')
+  expect(await cmd($, 'mute done question')).toBe('Muted: start, task-done, agent-done, done, question.')
   await done($)
   await clock.advance(100)
   expect(played()).toEqual([])

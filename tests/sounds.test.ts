@@ -20,7 +20,7 @@ test('the settings read back keep only what is valid', async () => {
   expect(readSettings(undefined)).toEqual(DEFAULTS)
   expect(readSettings({ enabled: false, preset: 'pippo', muted: ['done', 'nope', 3], claude: false })).toEqual({ enabled: false, preset: 'pippo', muted: ['done'], claude: false })
   expect(readSettings({ preset: '../evil', enabled: 'yes' }).preset).toBe('soft')
-  expect(DEFAULTS.muted).toEqual(['start'])
+  expect(DEFAULTS.muted).toEqual(['start', 'task-done', 'agent-done'])
 })
 
 test('a test run is told by the runner, not by the word test', async () => {
