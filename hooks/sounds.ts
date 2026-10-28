@@ -14,15 +14,15 @@ export const SOUNDS: Sound[] = [
   { name: 'question', by: 'plugin', when: 'Claude asks you a question (AskUserQuestion)' },
   { name: 'permission', by: 'plugin', when: 'a permission prompt waits for you' },
   { name: 'plan', by: 'plugin', when: 'a plan waits for your approval' },
-  { name: 'task-done', by: 'plugin', when: 'a background task finished' },
-  { name: 'agent-done', by: 'plugin', when: 'a subagent finished' },
+  { name: 'task-done', by: 'plugin', when: 'a background task finished (muted at first)' },
+  { name: 'agent-done', by: 'plugin', when: 'a subagent finished (muted at first)' },
   { name: 'tests-pass', by: 'both', when: 'a test command exited 0, or Claude says the tests passed' },
   { name: 'tests-fail', by: 'both', when: 'a test command failed, or Claude says so' },
   { name: 'error', by: 'plugin', when: 'a turn ended on an error (API error, retries run out, context limit)' },
   { name: 'limit-warning', by: 'plugin', when: 'a usage limit (the 5-hour or 7-day window) passed 80%' },
   { name: 'limit', by: 'plugin', when: 'a usage limit reached 100%' },
   { name: 'context-full', by: 'plugin', when: 'the context window passed 90%' },
-  { name: 'start', by: 'plugin', when: 'a session starts (off until you switch it on)' },
+  { name: 'start', by: 'plugin', when: 'a session starts (muted at first)' },
   { name: 'success', by: 'claude', when: 'Claude says something it did worked' },
   { name: 'warning', by: 'claude', when: 'Claude says something needs a look' },
   { name: 'attention', by: 'claude', when: 'Claude needs you now' },
@@ -40,7 +40,7 @@ export type AlertSettings = {
   claude: boolean
 }
 
-export const DEFAULTS: AlertSettings = { enabled: true, preset: 'soft', muted: ['start'], claude: true }
+export const DEFAULTS: AlertSettings = { enabled: true, preset: 'soft', muted: ['start', 'task-done', 'agent-done'], claude: true }
 
 /** A preset name is a folder name: letters, digits, dash and underscore, so no path can come out of it. */
 export const isPresetName = (name: string) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/.test(name)

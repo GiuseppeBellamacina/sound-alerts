@@ -32,15 +32,15 @@ Then `/reload-plugins` (or start a new session). Try it: `/alert play done`.
 | `question` | Claude asks you a question (`AskUserQuestion`) | the plugin |
 | `permission` | a permission prompt waits for you | the plugin |
 | `plan` | a plan waits for your approval | the plugin |
-| `task-done` | a background task finished | the plugin |
-| `agent-done` | a subagent finished | the plugin |
+| `task-done` | a background task finished (**muted** at first: `/alert unmute task-done`) | the plugin |
+| `agent-done` | a subagent finished (**muted** at first: `/alert unmute agent-done`) | the plugin |
 | `tests-pass` | a test command exited 0 (`pytest`, `npm test`, `go test`, `cargo test`, `dotnet test`, `make test`, `claude plugin test`, and the like), or Claude says so | the plugin and Claude |
 | `tests-fail` | a test command failed, or Claude says so | the plugin and Claude |
 | `error` | a turn ended on an error: an API error, retries run out, the context limit | the plugin |
 | `limit-warning` | a usage limit (the 5-hour or the 7-day window) passed 80% | the plugin |
 | `limit` | a usage limit reached 100% | the plugin |
 | `context-full` | the context window passed 90% | the plugin |
-| `start` | a session starts (**off** until you switch it on: `/alert unmute start`) | the plugin |
+| `start` | a session starts (**muted** at first: `/alert unmute start`) | the plugin |
 | `success` | Claude says something it did worked | Claude |
 | `warning` | Claude says something needs a look | Claude |
 | `attention` | Claude needs you now | Claude |
