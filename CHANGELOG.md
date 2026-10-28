@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- **`/alert remove <name>`**: deletes a preset of yours, after saying what goes (`/alert remove <name> yes` does it). The bundled presets stay. If the preset was in use, `soft` takes its place.
+
 ## 0.2.0
 
 - **`/alert test [preset]`**: plays every sound of a preset one after the other, saying which one is playing, and lists them at the end (the ones the preset has no file for too).

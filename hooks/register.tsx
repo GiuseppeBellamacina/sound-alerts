@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, playerArgv, readSettings } from './sounds'
+import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, playerArgv, readSettings } from './sounds'
 import type { AlertSettings, System } from './sounds'
 
 // The guidance lives in the tool's description: it reaches the model whatever other plugins do to the prompt.
@@ -64,6 +64,14 @@ async function fileFor($: EngineInterface, preset: string, sound: string): Promi
   return undefined
 }
 
+/** Deletes one folder of the user's own presets: our path only, and one a command line cannot misread. */
+async function removeFolder($: EngineInterface, folder: string): Promise<boolean> {
+  if (!/\/\.claude\/sound-alerts\/presets\/[A-Za-z0-9][A-Za-z0-9_-]*$/.test(folder.replaceAll('\\', '/')) || /[&|<>^%"]/.test(folder)) return false
+  const argv = (await systemOf($)) === 'windows' ? ['cmd', '/c', 'rmdir', '/s', '/q', folder.replaceAll('/', '\\')] : ['rm', '-rf', folder]
+  const run = await $.process.run(argv, { timeoutMs: 15_000 }).catch(() => ({ exitCode: 1 }))
+  return run.exitCode === 0 && !(await $.fs.exists(folder).catch(() => true))
+}
+
 // ---- playing ------------------------------------------------------------------------------------
 
 /** Windows says so in its environment; the others are told by `uname`. */
@@ -123,6 +131,7 @@ const HELP = [
   '/alert presets                  the presets you can use',
   '/alert preset <name>            use a preset',
   '/alert new <name>               make a folder for a preset of yours and say where it is',
+  '/alert remove <name> [yes]      delete a preset of yours (it says what goes first; the bundled ones stay)',
   '/alert sounds                   every case of sound, whether it is on and the preset has its file',
   '/alert play <sound>             hear one now (even if it is muted)',
   '/alert test [preset]            hear all of them one after the other, saying which one is playing (muted ones too)',
@@ -160,6 +169,18 @@ async function command($: EngineInterface, args: string): Promise<string> {
       const files = SOUNDS.map(x => `${x.name}.wav   ${x.when}`).join('\n')
       await $.fs.write(`${folder}/README.txt`, `Put .wav files here, named like these. A sound with no file stays silent.\nThen: /alert preset ${name}\n\n${files}\n`)
       return `Made ${folder}\nPut your .wav files there (see README.txt), then /alert preset ${name}`
+    }
+    case 'remove': {
+      const found = (await presets($)).find(p => p.name.toLowerCase() === (rest[0] ?? '').toLowerCase())
+      if (!found) return `No preset "${rest[0] ?? ''}". /alert presets lists them.`
+      if (!found.yours) return `${found.name} comes with the plugin: it cannot be removed. Yours are the ones marked so in /alert presets.`
+      const folder = `${await userBase($)}/${found.name}`
+      const count = (await $.fs.list(folder).catch(() => [])).length
+      if (rest[1]?.toLowerCase() !== 'yes') return `This deletes the folder ${folder} (${count} files).${found.bundled ? ` The bundled ${found.name} stays.` : ''}\nTo go on: /alert remove ${found.name} yes`
+      if (!(await removeFolder($, folder))) return `Could not delete ${folder}: delete it yourself.`
+      // The preset in use is gone: the default takes its place.
+      if (s.preset === found.name && !found.bundled) await save($, { ...s, preset: DEFAULTS.preset })
+      return `Removed ${folder}.${s.preset === found.name && !found.bundled ? ` Preset ${DEFAULTS.preset} is in use now.` : ''}`
     }
     case 'sounds': {
       const lines: string[] = []

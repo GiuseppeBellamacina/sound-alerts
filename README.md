@@ -85,6 +85,7 @@ A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces o
 | `/alert presets` | The presets you can use (`*` marks the one in use). |
 | `/alert preset <name>` | Use a preset. |
 | `/alert new <name>` | Makes the folder for a preset of yours and says where it is. |
+| `/alert remove <name>` | Deletes a preset of yours: it says what goes first, and `/alert remove <name> yes` does it. The bundled presets cannot be removed; for one you added files to, only your files go. |
 | `/alert sounds` | Every case of sound: on or muted, and whether the preset has its file. |
 | `/alert play <sound>` | Plays one now, even if it is muted. |
 | `/alert test [preset]` | Plays all sixteen one after the other, muted ones too, saying which one is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
