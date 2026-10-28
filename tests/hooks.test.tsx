@@ -29,6 +29,11 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   on('process.run', (_, e) => {
     if (e.argv[0] === 'uname') return { value: { exitCode: 0, stdout: `${system}\n`, stderr: '' } } as never
     runs.push([...e.argv])
+    // Removing a folder removes what is under it.
+    if (e.argv[0] === 'cmd' || e.argv[0] === 'rm') {
+      const dir = norm(e.argv.at(-1)!)
+      for (const p of Object.keys(files)) if (norm(p).startsWith(dir)) delete files[p]
+    }
     return { value: { exitCode: 0, stdout: 'ok:played\n', stderr: '' } } as never
   })
   on('tool.call', (_, e) => {
@@ -262,6 +267,42 @@ test('/alert test plays every sound of a preset in turn, muted ones too, and say
   expect(pippo).toMatch(/2\/16 question: \(no file\)/)
   expect(pippo).toMatch(/9\/16 error: played/)
   expect(await cmd($, 'test nope')).toMatch(/No preset "nope"/)
+})
+
+test('/alert remove deletes a preset of yours after saying what goes, and never a bundled one', async ($, on) => {
+  const { files, runs, played, clock } = engine(on)
+  await start($)
+  files[`${USER}/pippo/done.wav`] = 'RIFF'
+  files[`${USER}/pippo/error.wav`] = 'RIFF'
+  await cmd($, 'preset pippo')
+
+  expect(await cmd($, 'remove soft')).toMatch(/comes with the plugin: it cannot be removed/)
+  expect(await cmd($, 'remove retro yes')).toMatch(/comes with the plugin/)
+  expect(await cmd($, 'remove ../x yes')).toMatch(/No preset/)
+  expect(await cmd($, 'remove nope')).toMatch(/No preset "nope"/)
+  const preview = await cmd($, 'remove pippo')
+  expect(preview).toContain(`${USER}/pippo (2 files)`)
+  expect(preview).toContain('/alert remove pippo yes')
+  // Saying what goes deletes nothing.
+  expect(runs.filter(a => a[0] === 'cmd' || a[0] === 'rm').length).toBe(0)
+  expect(Object.keys(files).length).toBe(2)
+
+  expect(await cmd($, 'remove pippo yes')).toBe(`Removed ${USER}/pippo. Preset soft is in use now.`)
+  const gone = runs.find(a => a[0] === 'cmd')!
+  expect(gone.slice(0, 5)).toEqual(['cmd', '/c', 'rmdir', '/s', '/q'])
+  expect(gone[5]!.endsWith('.claude\\sound-alerts\\presets\\pippo')).toBe(true)
+  expect(Object.keys(files).length).toBe(0)
+  expect(await cmd($, 'presets')).not.toMatch(/pippo/)
+  expect(await cmd($, '')).toMatch(/preset soft;/)
+  await done($)
+  await clock.advance(100)
+  expect(played().at(-1)).toBe('soft/done')
+
+  // A folder of yours with the name of a bundled preset: only its files go, the bundled one stays in use.
+  files[`${USER}/soft/done.wav`] = 'RIFF'
+  expect(await cmd($, 'remove soft')).toMatch(/\(1 files\)\. The bundled soft stays/)
+  expect(await cmd($, 'remove soft yes')).toBe(`Removed ${USER}/soft.`)
+  expect(await cmd($, '')).toMatch(/preset soft;/)
 })
 
 test('/alert new makes the folder for a preset of yours and says where', async ($, on) => {
