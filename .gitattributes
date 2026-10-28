@@ -1,0 +1,4 @@
+# Scripts for macOS and Linux must keep Unix line endings, whatever system they were checked out on.
+*.sh text eol=lf
+# The sounds are binary.
+*.wav binary

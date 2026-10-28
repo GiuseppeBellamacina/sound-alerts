@@ -1,0 +1,14 @@
+{
+  "name": "sound-alerts",
+  "displayName": "Sound Alerts",
+  "version": "0.1.0",
+  "description": "Notification sounds for Claude Code: when Claude finishes, asks you something, needs a permission, runs tests or hits a limit. Presets of your own are folders of .wav files.",
+  "author": {
+    "name": "Giuseppe Bellamacina",
+    "url": "https://github.com/GiuseppeBellamacina"
+  },
+  "homepage": "https://github.com/GiuseppeBellamacina/sound-alerts",
+  "repository": "https://github.com/GiuseppeBellamacina/sound-alerts",
+  "license": "MIT",
+  "keywords": ["sound", "notification", "alert", "audio", "productivity", "mod"]
+}

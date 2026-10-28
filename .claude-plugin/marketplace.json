@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "sound-alerts",
+  "description": "Sound Alerts: notification sounds for Claude Code.",
+  "owner": {
+    "name": "Giuseppe Bellamacina",
+    "url": "https://github.com/GiuseppeBellamacina"
+  },
+  "plugins": [
+    {
+      "name": "sound-alerts",
+      "description": "Notification sounds for Claude Code: when Claude finishes, asks you something, needs a permission, runs tests or hits a limit. Presets of your own are folders of .wav files.",
+      "source": "./",
+      "category": "productivity",
+      "keywords": ["sound", "notification", "alert", "audio", "mod"]
+    }
+  ]
+}
