@@ -24,17 +24,23 @@ jobs:
             exit 1
           }
 
-      - name: The Windows player parses
+      - name: The Windows scripts parse
         shell: pwsh
         run: |
-          $errors = $null; $tokens = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/play.ps1", [ref]$tokens, [ref]$errors)
-          if ($errors.Count) { $errors | ForEach-Object { $_.Message }; exit 1 }
+          foreach ($file in 'play.ps1', 'mode.ps1') {
+            $errors = $null; $tokens = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/$file", [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { $errors | ForEach-Object { "${file}: $($_.Message)" }; exit 1 }
+          }
 
       # A runner has no sound card: the script must still answer one line.
       - name: The Windows player
         shell: powershell
         run: ./tests/windows/play.test.ps1
+
+      - name: The script that reads the permission mode
+        shell: powershell
+        run: ./tests/windows/mode.test.ps1
 
       - name: The bundled presets are complete and valid
         run: python tests/presets.test.py
@@ -74,3 +80,6 @@ jobs:
 
       - name: The player against stand-ins
         run: bash tests/unix/play.test.sh
+
+      - name: The script that reads the permission mode
+        run: bash tests/unix/mode.test.sh

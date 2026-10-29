@@ -30,7 +30,7 @@ Then `/reload-plugins` (or start a new session). Try it: `/alert play done`.
 | --- | --- | --- |
 | `done` | Claude finished its turn (not when you interrupt it) | the plugin |
 | `question` | Claude asks you a question (`AskUserQuestion`) | the plugin |
-| `permission` | a permission prompt has waited for you 3 seconds (`/alert permission <seconds>`; in Claude's auto mode the classifier answers at once, so it stays quiet) | the plugin |
+| `permission` | a permission prompt has waited for you 3 seconds (`/alert permission <seconds>`); silent in Claude's auto mode, where the classifier answers | the plugin |
 | `plan` | a plan waits for your approval | the plugin |
 | `task-done` | a background task finished (**muted** at first: `/alert unmute task-done`) | the plugin |
 | `agent-done` | a subagent finished (**muted** at first: `/alert unmute agent-done`) | the plugin |

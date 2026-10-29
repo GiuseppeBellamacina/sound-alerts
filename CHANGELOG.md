@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+- **No permission sound in Claude's auto mode.** A plugin is told no permission mode, but the session's transcript records it on each prompt: when the permission sound is about to play, a small script (`scripts/mode.ps1`, `scripts/mode.sh`) reads the last 6 MB of the transcript for the last `permissionMode`, and `auto` stays silent. The 3-second wait of 0.4.0 stays as it was for the other modes, and is what is left when the mode cannot be read (a new session with no prompt yet). `/alert log` says which mode it saw.
+
 ## 0.5.1
 
 - **Fixed**: a command that only *contains* the name of a test runner played `tests-pass`: a script that edits a README with `python - <<'EOF'`, a `sed` that changes a line saying `npm test`. A heredoc body and what is in quotes are now ignored when looking for a test run (a runner named only inside quotes, like `bash -c "pytest"`, is not seen: Claude can say it with `tests-pass`).
