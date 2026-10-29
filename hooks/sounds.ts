@@ -38,9 +38,11 @@ export type AlertSettings = {
   muted: string[]
   /** Whether Claude may play sounds itself, with its tool. */
   claude: boolean
+  /** Seconds a permission prompt must have waited before its sound plays (0: at once). Auto mode answers at once and never gets there. */
+  permissionAfter: number
 }
 
-export const DEFAULTS: AlertSettings = { enabled: true, preset: 'soft', muted: ['start', 'task-done', 'agent-done'], claude: true }
+export const DEFAULTS: AlertSettings = { enabled: true, preset: 'soft', muted: ['start', 'task-done', 'agent-done'], claude: true, permissionAfter: 3 }
 
 /** A preset name is a folder name: letters, digits, dash and underscore, so no path can come out of it. */
 export const isPresetName = (name: string) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/.test(name)
@@ -53,6 +55,7 @@ export function readSettings(stored: unknown): AlertSettings {
     preset: typeof s.preset === 'string' && isPresetName(s.preset) ? s.preset : DEFAULTS.preset,
     muted: Array.isArray(s.muted) ? s.muted.filter((x): x is string => typeof x === 'string' && isSound(x)) : DEFAULTS.muted,
     claude: typeof s.claude === 'boolean' ? s.claude : DEFAULTS.claude,
+    permissionAfter: typeof s.permissionAfter === 'number' && s.permissionAfter >= 0 && s.permissionAfter <= 60 ? s.permissionAfter : DEFAULTS.permissionAfter,
   }
 }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- **The permission sound plays only if the prompt is still waiting after 3 seconds** (`/alert permission <seconds>`, 0 for at once). Claude's auto mode answers an ask at once and the command ends within moments, so it no longer sounds; a prompt that waits for you does. The wait stops when the command ends. Questions and plans keep their immediate sound.
+
 ## 0.3.2
 
 - `/alert log` now notes each question, plan and permission with the check's `approver`, even when the sound is muted. In Claude's auto mode the classifier answers the asks and the permission sound still plays: `/alert mute permission` stops it, and the log is there to tell the two cases apart.
