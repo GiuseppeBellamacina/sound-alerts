@@ -5,7 +5,7 @@ Notification sounds for [Claude Code](https://code.claude.com). You hear it when
 It plays sounds and nothing else: no network, no notification windows, no files read except the sounds you chose.
 
 - Two presets come with it: **soft** (warm bell tones) and **retro** (8-bit blips).
-- A preset of your own is a folder of `.wav` files named like the ones below. Make a folder called `pippo`, put sounds in it, `/alert preset pippo`.
+- A preset of your own is a folder of `.wav` or `.mp3` files named like the ones below. Make a folder called `pippo`, put sounds in it, `/alert preset pippo`. Give a sound several files and one is picked at random each time.
 - Windows is the system it was built and tried on. macOS and Linux are written and tested against stand-ins for the system's players, not yet on real machines.
 
 ## Install
@@ -55,7 +55,9 @@ Notes:
 
 ## Presets
 
-A preset is a folder: one `<sound>.wav` for each case it wants to play, named as in the table. A sound with no file stays silent, so a preset can be as small as one file.
+A preset is a folder: for each case it wants to play, a `<sound>.wav` or `<sound>.mp3`, named as in the table. A sound with no file stays silent, so a preset can be as small as one file.
+
+**Several files for one sound.** `success.mp3`, or `success-01.mp3`, `success-02.wav`, `success-03.mp3`: a dash and digits before the extension, wav and mp3 mixed as you like. Each time the sound plays, one of its files is picked at random, never the one that just played. `success-final.mp3` is not a variant (the part after the dash must be digits), and `limit-5h.wav` belongs to `limit-5h`, not to `limit`.
 
 **Make your own.**
 
@@ -63,7 +65,7 @@ A preset is a folder: one `<sound>.wav` for each case it wants to play, named as
 /alert new pippo
 ```
 
-makes `~/.claude/sound-alerts/presets/pippo/` (on Windows `C:\Users\<you>\.claude\sound-alerts\presets\pippo\`) with a `README.txt` listing the file names. Put `.wav` files in it, then:
+makes `~/.claude/sound-alerts/presets/pippo/` (on Windows `C:\Users\<you>\.claude\sound-alerts\presets\pippo\`) with a `README.txt` listing the file names. Put `.wav` or `.mp3` files in it, then:
 
 ```text
 /alert preset pippo
@@ -73,9 +75,9 @@ makes `~/.claude/sound-alerts/presets/pippo/` (on Windows `C:\Users\<you>\.claud
 
 Your folder lives outside the plugin's own folder on purpose: the plugin's folder (inside `~/.claude/plugins/`) is replaced when the plugin is updated, and anything you put there is lost. Putting a preset there by hand works until the next update.
 
-A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces only the files it has: add a `done.wav` to your own `soft/` and everything else stays as it was.
+A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces only the files it has: add a `done.mp3` to your own `soft/` and `done` plays that instead of the bundled files for it (all of them: a sound of yours replaces that sound as a whole), while every other sound stays as it was.
 
-**Formats.** `.wav` on every system. macOS also plays what `afplay` plays, and Linux what its player plays, but the file name must end in `.wav` all the same, so a preset works everywhere. Keep them short.
+**Formats.** `.wav` and `.mp3`, on every system. On Windows an `.mp3` goes through the system's media player and a `.wav` through its sound player; macOS has `afplay`; on Linux an mp3 needs a player that knows it (`ffplay`, `mpv`, `mpg123`, or `paplay`/`pw-play` with a recent libsndfile): `aplay` plays wav only. Keep them short: a sound plays to its end (an mp3 for at most 30 seconds on Windows).
 
 ## Commands
 
@@ -89,7 +91,7 @@ A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces o
 | `/alert remove <name>` | Deletes a preset of yours: it says what goes first, and `/alert remove <name> yes` does it. The bundled presets cannot be removed; for one you added files to, only your files go. |
 | `/alert sounds` | Every case of sound: on or muted, and whether the preset has its file. |
 | `/alert play <sound>` | Plays one now, even if it is muted. |
-| `/alert test [preset]` | Plays all seventeen one after the other, muted ones too, saying which one is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
+| `/alert test [preset]` | Plays every file of the seventeen sounds one after the other, variants too, muted ones too, saying which file is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
 | `/alert mute <sound>...` · `unmute <sound>...` · `unmute all` | Silences some sounds. `start` is muted at first. |
 | `/alert claude on` · `off` | Whether Claude may play sounds itself. |
 | `/alert log` | The last things the plugin saw. Read it when a sound does not play. |
@@ -110,7 +112,7 @@ Claude has one tool, `play`, with a sound from the list above (never `start`). I
 1. `/alert` says whether it is on, which preset, what is muted.
 2. `/alert sounds` says whether the preset has a file for it (`(no file)`).
 3. `/alert play done` plays by hand and says why not (`/alert log` keeps the answer of the player).
-4. Windows plays `.wav` only. Linux needs one of `paplay`, `pw-play`, `aplay`, `ffplay`. macOS has `afplay`.
+4. Windows plays `.wav` and `.mp3`. Linux needs one of `paplay`, `pw-play`, `ffplay`, `mpv`, `mpg123`, `aplay` (the last for wav only). macOS has `afplay`.
 5. Over SSH or in a container there is no sound card: nothing can play there.
 
 ## Develop

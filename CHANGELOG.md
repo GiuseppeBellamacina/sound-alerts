@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0
+
+- **`.mp3` as well as `.wav`.** On Windows an mp3 plays through the system's media player (SoundPlayer does only wav); `play.sh` gains `ffplay`, `mpv` and `mpg123` for Linux, and `afplay` on macOS already plays it.
+- **Several files for one sound, one picked at random.** `success-01.mp3`, `success-02.wav`, `success.mp3`: each time the sound plays, one of its files, never the one that played last. `/alert sounds` says how many files a sound has, and `/alert test` plays every file and names it. A sound of yours replaces the bundled files of that sound as a whole.
+
 ## 0.7.0
 
 - **The wait of `/alert permission` is gone**: the mode is read from the transcript, so the permission sound plays at once, and not at all in auto mode. The reading is kept for the prompt it was made on.

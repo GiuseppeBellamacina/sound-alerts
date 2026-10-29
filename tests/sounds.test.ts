@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, playerArgv, readSettings } from '../hooks/sounds'
+import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, pickVariant, playerArgv, readSettings, variantsOf } from '../hooks/sounds'
 
 test('every case of sound is listed once, with who plays it', async () => {
   expect(new Set(NAMES).size).toBe(NAMES.length)
@@ -140,6 +140,29 @@ test('the context window is said once, and again only after it was emptied', asy
   expect(limitSounds(fired, [], 80)).toEqual([])
   expect(limitSounds(fired, [], 40)).toEqual([])
   expect(limitSounds(fired, [], 92)).toEqual(['context-full'])
+})
+
+test('the files of a sound: its own name, a dash and digits, wav or mp3, and no other sound', async () => {
+  const names = ['success.wav', 'success-01.mp3', 'Success-2.WAV', 'success-final.mp3', 'success-01.ogg', 'success.txt', 'limit-5h.wav', 'limit.mp3', 'limit-02.wav', 'xsuccess.wav', 'done.wav']
+  expect(variantsOf(names, 'success')).toEqual(['Success-2.WAV', 'success-01.mp3', 'success.wav'])
+  // limit-5h is a sound of its own, not variant 5h of limit.
+  expect(variantsOf(names, 'limit')).toEqual(['limit-02.wav', 'limit.mp3'])
+  expect(variantsOf(names, 'limit-5h')).toEqual(['limit-5h.wav'])
+  expect(variantsOf(names, 'attention')).toEqual([])
+})
+
+test('one of the files is picked at random, not the one that played last', async () => {
+  const files = ['a.wav', 'b.mp3', 'c.wav']
+  expect(pickVariant([])).toBeUndefined()
+  expect(pickVariant(['a.wav'], 'a.wav')).toBe('a.wav')
+  // The random number picks inside what is left after the last one.
+  expect(pickVariant(files, undefined, () => 0)).toBe('a.wav')
+  expect(pickVariant(files, undefined, () => 0.99)).toBe('c.wav')
+  expect(pickVariant(files, 'a.wav', () => 0)).toBe('b.mp3')
+  expect(pickVariant(files, 'c.wav', () => 0.99)).toBe('b.mp3')
+  // A random number of exactly 1 does not run off the end.
+  expect(pickVariant(files, undefined, () => 1)).toBe('c.wav')
+  for (let i = 0; i < 50; i++) expect(pickVariant(files, 'b.mp3')).not.toBe('b.mp3')
 })
 
 test('the player is one of our scripts with one argument, never a shell line', async () => {

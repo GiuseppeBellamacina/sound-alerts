@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, modeArgv, playerArgv, readSettings } from './sounds'
+import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, modeArgv, pickVariant, playerArgv, readSettings, variantsOf } from './sounds'
 import type { AlertSettings, System } from './sounds'
 
 // The guidance lives in the tool's description: it reaches the model whatever other plugins do to the prompt.
@@ -58,13 +58,26 @@ async function presets($: EngineInterface): Promise<{ name: string; yours: boole
   return [...new Set([...bundled, ...yours])].sort().map(name => ({ name, yours: yours.includes(name), bundled: bundled.includes(name) }))
 }
 
-/** The file for one sound in a preset: the user's own first, the bundled one of the same name after it. */
-async function fileFor($: EngineInterface, preset: string, sound: string): Promise<string | undefined> {
+/**
+ * The files of one sound in a preset (success.wav, success-01.mp3, ...): the user's own if they have any for it,
+ * the bundled ones of the same name after them. A sound of the user's replaces the bundled files of that sound as a whole.
+ */
+async function filesFor($: EngineInterface, preset: string, sound: string): Promise<string[]> {
   for (const base of [await userBase($), bundledBase($)]) {
-    const file = `${base}/${preset}/${sound}.wav`
-    if (await $.fs.exists(file).catch(() => false)) return file
+    const names = (await $.fs.list(`${base}/${preset}`).catch(() => [])).filter(e => e.kind === 'file').map(e => e.name)
+    const found = variantsOf(names, sound)
+    if (found.length) return found.map(n => `${base}/${preset}/${n}`)
   }
-  return undefined
+  return []
+}
+
+const lastPlayed = new Map<string, string>()
+
+/** One file for a sound, at random among its variants. */
+async function fileFor($: EngineInterface, preset: string, sound: string): Promise<string | undefined> {
+  const file = pickVariant(await filesFor($, preset, sound), lastPlayed.get(sound))
+  if (file) lastPlayed.set(sound, file)
+  return file
 }
 
 /** Deletes one folder of the user's own presets: our path only, and one a command line cannot misread. */
@@ -149,8 +162,8 @@ async function sound($: EngineInterface, name: string, why: string, force = fals
   }
   const file = await fileFor($, s.preset, name)
   if (!file) {
-    note(`${name}: no ${name}.wav in ${s.preset}`)
-    return `the preset ${s.preset} has no ${name}.wav`
+    note(`${name}: no file for it in ${s.preset}`)
+    return `the preset ${s.preset} has no file for ${name}`
   }
   if (force) {
     const line = await runPlayer($, file)
@@ -210,9 +223,9 @@ async function command($: EngineInterface, args: string): Promise<string> {
       if (!isPresetName(name)) return 'Usage: /alert new <name>: letters, digits, dash or underscore, up to 32.'
       const folder = `${await userBase($)}/${name}`
       if ((await $.fs.exists(folder).catch(() => false)) || (await presets($)).some(p => p.name.toLowerCase() === name.toLowerCase())) return `A preset called ${name} exists already: /alert presets.`
-      const files = SOUNDS.map(x => `${x.name}.wav   ${x.when}`).join('\n')
-      await $.fs.write(`${folder}/README.txt`, `Put .wav files here, named like these. A sound with no file stays silent.\nThen: /alert preset ${name}\n\n${files}\n`)
-      return `Made ${folder}\nPut your .wav files there (see README.txt), then /alert preset ${name}`
+      const files = SOUNDS.map(x => `${x.name}   ${x.when}`).join('\n')
+      await $.fs.write(`${folder}/README.txt`, `Put .wav or .mp3 files here, named like these sounds: done.wav, done.mp3.\nSeveral files for one sound (success-01.mp3, success-02.wav, ...): one is picked at random each time.\nA sound with no file stays silent. Then: /alert preset ${name}\n\n${files}\n`)
+      return `Made ${folder}\nPut your .wav or .mp3 files there (see README.txt), then /alert preset ${name}`
     }
     case 'remove': {
       const found = (await presets($)).find(p => p.name.toLowerCase() === (rest[0] ?? '').toLowerCase())
@@ -229,8 +242,9 @@ async function command($: EngineInterface, args: string): Promise<string> {
     case 'sounds': {
       const lines: string[] = []
       for (const x of SOUNDS) {
-        const has = !!(await fileFor($, s.preset, x.name))
-        lines.push(`${s.muted.includes(x.name) ? '[muted]' : '[on]   '} ${x.name.padEnd(14)} ${has ? '' : '(no file) '}${x.when}`)
+        const count = (await filesFor($, s.preset, x.name)).length
+        const files = count === 0 ? '(no file) ' : count > 1 ? `(${count} files) ` : ''
+        lines.push(`${s.muted.includes(x.name) ? '[muted]' : '[on]   '} ${x.name.padEnd(14)} ${files}${x.when}`)
       }
       return `Preset ${s.preset}:\n${lines.join('\n')}`
     }
@@ -244,17 +258,20 @@ async function command($: EngineInterface, args: string): Promise<string> {
         const lines: string[] = []
         for (const [i, x] of SOUNDS.entries()) {
           const head = `${i + 1}/${SOUNDS.length} ${x.name}`
-          const file = await fileFor($, preset.name, x.name)
-          if (!file) {
+          const files = await filesFor($, preset.name, x.name)
+          if (files.length === 0) {
             lines.push(`${head}: (no file)`)
             continue
           }
-          // Each one is said while it plays: the status line, and a notice that stays a moment.
-          $.ui.status(`sound-alerts: ${head}`)
-          $.ui.toast(`${head}: ${x.when}`)
-          const line = await runPlayer($, file)
-          note(`${x.name} (test): ${line}`)
-          lines.push(`${head}: ${line.startsWith('ok:') ? 'played' : line.replace(/^error:/, 'not played: ')}  (${x.when})`)
+          // Every file of the sound, variants too, each said while it plays: the status line, and a notice that stays a moment.
+          for (const file of files) {
+            const label = files.length > 1 ? `${head} [${file.split('/').pop()}]` : head
+            $.ui.status(`sound-alerts: ${label}`)
+            $.ui.toast(`${label}: ${x.when}`)
+            const line = await runPlayer($, file)
+            note(`${x.name} (test, ${file.split('/').pop()}): ${line}`)
+            lines.push(`${label}: ${line.startsWith('ok:') ? 'played' : line.replace(/^error:/, 'not played: ')}  (${x.when})`)
+          }
         }
         return `Preset ${preset.name}:\n${lines.join('\n')}`
       } finally {
