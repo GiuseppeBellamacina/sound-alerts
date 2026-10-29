@@ -15,6 +15,7 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   mock.env(on, system === 'Windows_NT' ? { USERPROFILE: 'C:/Users/test', OS: 'Windows_NT' } : { HOME: '/home/test' })
   const files: Record<string, string> = {}
   const runs: string[][] = []
+  const timeouts: (number | undefined)[] = []
   // The session's transcript, and the mode it last recorded: auto, default, or nothing.
   const session = { mode: 'default', id: '2fdd950f-c860-4b16-9043-8f4a6478f907' }
   files[`C:/Users/test/.claude/projects/some-project/${session.id}.jsonl`] = 'x'
@@ -35,6 +36,7 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
     // The script that reads the mode a transcript recorded.
     if (e.argv.some(a => /mode\.(ps1|sh)$/.test(a))) return { value: { exitCode: 0, stdout: `ok:${session.mode}\n`, stderr: '' } } as never
     runs.push([...e.argv])
+    timeouts.push(e.init?.timeoutMs)
     // Removing a folder removes what is under it.
     if (e.argv[0] === 'cmd' || e.argv[0] === 'rm') {
       const dir = norm(e.argv.at(-1)!)
@@ -66,7 +68,7 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   })
   // What the player was asked to play, as `preset/sound`.
   const played = () => runs.map(argv => /presets[/]([\w-]+)[/]([\w-]+)[.](wav|mp3)$/.exec(norm(argv.at(-1)!))?.slice(1, 3).join('/') ?? argv.join(' '))
-  return { files, runs, clock, played, registered, notices, session }
+  return { files, runs, clock, played, registered, notices, session, timeouts }
 }
 
 const cmd = async ($: Engine, args: string) =>
@@ -93,6 +95,13 @@ test('the start sound plays once it is unmuted', async ($, on) => {
   await start($)
   await clock.advance(100)
   expect(played()).toEqual(['soft/start'])
+})
+
+test('the player may run as long as the longest clip, not 15 seconds', async ($, on) => {
+  const { timeouts } = engine(on)
+  await start($)
+  expect(await cmd($, 'play done')).toBe('Played done.')
+  expect(timeouts.at(-1)).toBeGreaterThanOrEqual(35_000)
 })
 
 test('a turn that ended plays done, in the player of the system', async ($, on) => {

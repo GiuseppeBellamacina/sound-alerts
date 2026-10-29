@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.1
+
+- **Fixed**: a sound longer than 15 seconds was cut and reported as an error (`still running after 15000ms`). A player may now run for 40 seconds, more than the 30 an mp3 is played for on Windows.
+
 ## 0.8.0
 
 - **`.mp3` as well as `.wav`.** On Windows an mp3 plays through the system's media player (SoundPlayer does only wav); `play.sh` gains `ffplay`, `mpv` and `mpg123` for Linux, and `afplay` on macOS already plays it.
