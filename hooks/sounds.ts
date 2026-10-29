@@ -128,6 +128,13 @@ export function limitSounds(fired: Set<string>, rateLimits: RateLimit[], context
   return out
 }
 
+/** The command line that reads the permission mode a transcript last recorded: a script of ours, one argument. */
+export function modeArgv(system: System, root: string, file: string): string[] {
+  return system === 'windows'
+    ? ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', `${root}/scripts/mode.ps1`, '-Path', file]
+    : ['bash', `${root}/scripts/mode.sh`, file]
+}
+
 /** The command line that plays one file: a script of ours, one argument, no shell. */
 export function playerArgv(system: System, root: string, file: string): string[] {
   return system === 'windows'

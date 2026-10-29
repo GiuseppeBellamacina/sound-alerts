@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, playerArgv, readSettings } from './sounds'
+import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, modeArgv, playerArgv, readSettings } from './sounds'
 import type { AlertSettings, System } from './sounds'
 
 // The guidance lives in the tool's description: it reaches the model whatever other plugins do to the prompt.
@@ -92,6 +92,33 @@ async function runPlayer($: EngineInterface, file: string): Promise<string> {
   return line || run.stderr.trim().slice(0, 160) || 'the player gave no answer'
 }
 
+let transcript: { id: string; path: string } | undefined
+
+/** The transcript file of this session: its name is the session's id, in the folder of its project. */
+async function transcriptPath($: EngineInterface): Promise<string | undefined> {
+  const id = await $.session.id().catch(() => '')
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return undefined
+  if (transcript?.id === id) return transcript.path
+  const base = `${await home($)}/.claude/projects`
+  for (const dir of await $.fs.list(base).catch(() => [])) {
+    const file = `${base}/${dir.name}/${id}.jsonl`
+    if (dir.kind === 'dir' && (await $.fs.exists(file).catch(() => false))) return (transcript = { id, path: file }).path
+  }
+  return undefined
+}
+
+/**
+ * The permission mode of this session (`default`, `auto`, `acceptEdits`, `plan`), as its transcript last recorded it on a prompt.
+ * The engine tells a plugin no mode: the transcript is where it is written. Undefined when it cannot be read.
+ */
+async function permissionMode($: EngineInterface): Promise<string | undefined> {
+  const file = await transcriptPath($)
+  if (!file) return undefined
+  const run = await $.process.run(modeArgv(await systemOf($), $.plugin.root, file), { timeoutMs: 10_000 }).catch(() => undefined)
+  const line = run?.stdout.trim().split(/\r?\n/).filter(Boolean).pop() ?? ''
+  return line.startsWith('ok:') && line.length > 3 ? line.slice(3) : undefined
+}
+
 /**
  * Plays a case of sound if the user wants it: the switch is on, it is not muted, it did not just play.
  * Answers why not, or `played`. `force` is for the user's own tests: no switch, no mute.
@@ -105,6 +132,12 @@ async function sound($: EngineInterface, name: string, why: string, force = fals
     // Several things can end together (subagents): one sound is enough.
     if (now - (lastAt.get(name) ?? -Infinity) < 1500) return 'too soon'
     lastAt.set(name, now)
+  }
+  // In auto mode the classifier answers a permission: nobody is asked, so nothing sounds.
+  if (name === 'permission' && !force) {
+    const mode = await permissionMode($)
+    note(`permission: mode ${mode ?? 'unknown'}`)
+    if (mode === 'auto') return 'auto mode'
   }
   const file = await fileFor($, s.preset, name)
   if (!file) {

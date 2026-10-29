@@ -15,6 +15,10 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   mock.env(on, system === 'Windows_NT' ? { USERPROFILE: 'C:/Users/test', OS: 'Windows_NT' } : { HOME: '/home/test' })
   const files: Record<string, string> = {}
   const runs: string[][] = []
+  // The session's transcript, and the mode it last recorded: auto, default, or nothing.
+  const session = { mode: 'default', id: '2fdd950f-c860-4b16-9043-8f4a6478f907' }
+  files[`C:/Users/test/.claude/projects/some-project/${session.id}.jsonl`] = 'x'
+  on('session.id', () => ({ value: session.id }) as never)
   const bundled = (path: string) => {
     const m = /\/presets(?:\/(soft|retro)(?:\/([a-z0-9-]+)\.wav)?)?$/.exec(norm(path))
     return !!m && !norm(path).includes('/.claude/') && (m[2] === undefined || NAMES.includes(m[2]))
@@ -28,6 +32,8 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   on('command.register', (_, e) => (registered.push(e.name), { value: { command: e.name } }))
   on('process.run', (_, e) => {
     if (e.argv[0] === 'uname') return { value: { exitCode: 0, stdout: `${system}\n`, stderr: '' } } as never
+    // The script that reads the mode a transcript recorded.
+    if (e.argv.some(a => /mode\.(ps1|sh)$/.test(a))) return { value: { exitCode: 0, stdout: `ok:${session.mode}\n`, stderr: '' } } as never
     runs.push([...e.argv])
     // Removing a folder removes what is under it.
     if (e.argv[0] === 'cmd' || e.argv[0] === 'rm') {
@@ -58,7 +64,7 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   })
   // What the player was asked to play, as `preset/sound`.
   const played = () => runs.map(argv => /presets\/([\w-]+)\/([\w-]+)\.wav$/.exec(norm(argv.at(-1)!))?.slice(1).join('/') ?? argv.join(' '))
-  return { files, runs, clock, played, registered, notices }
+  return { files, runs, clock, played, registered, notices, session }
 }
 
 const cmd = async ($: Engine, args: string) =>
@@ -179,6 +185,34 @@ test('a permission answered at once (auto mode) makes no sound, unless the wait 
   expect(await cmd($, 'permission 99')).toMatch(/0 to 60/)
   expect(await cmd($, 'permission x')).toMatch(/0 to 60/)
   expect(await cmd($, '')).toMatch(/sound-alerts is on/)
+})
+
+test('the permission sound reads the mode from the transcript: nothing in auto mode, a sound in the others or when it is not known', async ($, on) => {
+  const { played, clock, session } = engine(on)
+  on('tool.check', (_, e) => ({ decision: JSON.stringify(e).includes('ASK') ? ('ask' as const) : ('allow' as const) }))
+  await start($)
+  await cmd($, 'permission 0')
+
+  session.mode = 'auto'
+  await call($, 'Bash', { command: 'ASK one' })
+  await clock.advance(2_000)
+  expect(played()).toEqual([])
+
+  session.mode = 'default'
+  await call($, 'Bash', { command: 'ASK two' })
+  await clock.advance(2_000)
+  expect(played()).toEqual(['soft/permission'])
+
+  // A mode the transcript does not hold yet (a new session): the sound stays, as before.
+  session.mode = ''
+  await call($, 'Bash', { command: 'ASK three' })
+  await clock.advance(2_000)
+  expect(played()).toEqual(['soft/permission', 'soft/permission'])
+
+  const log = await cmd($, 'log')
+  expect(log).toMatch(/permission: mode auto/)
+  expect(log).toMatch(/permission: mode default/)
+  expect(log).toMatch(/permission: mode unknown/)
 })
 
 test('a test command that exits 0 plays tests-pass, one that fails plays tests-fail, other commands play nothing', async ($, on) => {
@@ -332,13 +366,13 @@ test('/alert remove deletes a preset of yours after saying what goes, and never 
   expect(preview).toContain('/alert remove pippo yes')
   // Saying what goes deletes nothing.
   expect(runs.filter(a => a[0] === 'cmd' || a[0] === 'rm').length).toBe(0)
-  expect(Object.keys(files).length).toBe(2)
+  expect(Object.keys(files).filter(k => k.includes("sound-alerts")).length).toBe(2)
 
   expect(await cmd($, 'remove pippo yes')).toBe(`Removed ${USER}/pippo. Preset soft is in use now.`)
   const gone = runs.find(a => a[0] === 'cmd')!
   expect(gone.slice(0, 5)).toEqual(['cmd', '/c', 'rmdir', '/s', '/q'])
   expect(gone[5]!.endsWith('.claude\\sound-alerts\\presets\\pippo')).toBe(true)
-  expect(Object.keys(files).length).toBe(0)
+  expect(Object.keys(files).filter(k => k.includes("sound-alerts")).length).toBe(0)
   expect(await cmd($, 'presets')).not.toMatch(/pippo/)
   expect(await cmd($, '')).toMatch(/preset soft;/)
   await done($)
