@@ -58,12 +58,14 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   on('fs.list', (_, e) => {
     const base = norm(e.path ?? '')
     if (bundled(base) && base.endsWith('/presets')) return { value: ['soft', 'retro'].map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })) } as never
+    // A bundled preset's folder holds one .wav for each sound.
+    if (bundled(base) && /[/]presets[/](soft|retro)$/.test(base)) return { value: NAMES.map(n => ({ name: `${n}.wav`, kind: 'file', size: 1, mtimeMs: 0, isLink: false })) } as never
     const names = new Set<string>()
     for (const p of Object.keys(files)) if (norm(p).startsWith(`${base}/`)) names.add(norm(p).slice(base.length + 1).split('/')[0]!)
     return { value: [...names].map(name => ({ name, kind: files[`${base}/${name}`] === undefined ? 'dir' : 'file', size: 0, mtimeMs: 0, isLink: false })) } as never
   })
   // What the player was asked to play, as `preset/sound`.
-  const played = () => runs.map(argv => /presets\/([\w-]+)\/([\w-]+)\.wav$/.exec(norm(argv.at(-1)!))?.slice(1).join('/') ?? argv.join(' '))
+  const played = () => runs.map(argv => /presets[/]([\w-]+)[/]([\w-]+)[.](wav|mp3)$/.exec(norm(argv.at(-1)!))?.slice(1, 3).join('/') ?? argv.join(' '))
   return { files, runs, clock, played, registered, notices, session }
 }
 
@@ -291,7 +293,7 @@ test('a preset is a folder: the bundled ones, yours, and the one you made overri
   await call($, 'Bash', { command: 'npm test' })
   await clock.advance(100)
   expect(played().length).toBe(2)
-  expect(await cmd($, 'play question')).toMatch(/Not played: the preset pippo has no question\.wav/)
+  expect(await cmd($, 'play question')).toMatch(/Not played: the preset pippo has no file for question/)
   expect(await cmd($, 'sounds')).toMatch(/\[on\] {4}done\s+Claude finished[\s\S]*\[on\] {4}question\s+\(no file\)/)
 
   // A folder of the user with the name of a bundled preset overrides it file by file.
@@ -362,6 +364,63 @@ test('/alert remove deletes a preset of yours after saying what goes, and never 
   expect(await cmd($, '')).toMatch(/preset soft;/)
 })
 
+test('a sound with several files plays one at random, never the same twice in a row, wav and mp3 alike', async ($, on) => {
+  const { files, runs, played, clock } = engine(on)
+  await start($)
+  files[`${USER}/pippo/success-01.mp3`] = 'ID3'
+  files[`${USER}/pippo/success-02.wav`] = 'RIFF'
+  files[`${USER}/pippo/success.mp3`] = 'ID3'
+  files[`${USER}/pippo/limit-5h.mp3`] = 'ID3'
+  files[`${USER}/pippo/notes.txt`] = 'not audio'
+  files[`${USER}/pippo/success-final.mp3`] = 'ID3'
+  await cmd($, 'preset pippo')
+  const play = () => $.tool.call({ tool: TOOL, sound: 'success' } as never)
+  const heard: string[] = []
+  for (let i = 0; i < 8; i++) {
+    await play()
+    await clock.advance(2_500)
+    heard.push(played().at(-1)!)
+  }
+  expect(runs.length).toBe(8)
+  expect(new Set(heard)).toEqual(new Set(['pippo/success-01', 'pippo/success-02', 'pippo/success']))
+  for (let i = 1; i < heard.length; i++) expect(heard[i]).not.toBe(heard[i - 1])
+  // The file that plays is a real one of the sound: neither another sound's nor a file that is not audio.
+  expect(runs.every(a => /success(-0[12])?[.](wav|mp3)$/.test(norm(a.at(-1)!)))).toBe(true)
+  // The listing says how many files a sound has, and limit-5h is not a variant of limit.
+  const sounds = await cmd($, 'sounds')
+  expect(sounds).toMatch(/success\s+\(3 files\)/)
+  expect(sounds).toMatch(/limit-5h\s+Claude|limit-5h\s+the 5-hour/)
+  expect(sounds).toMatch(/limit\s+\(no file\)/)
+})
+
+test('/alert test plays every file of every sound, and says which file', async ($, on) => {
+  const { files, played } = engine(on)
+  await start($)
+  files[`${USER}/pippo/done.mp3`] = 'ID3'
+  files[`${USER}/pippo/success-01.mp3`] = 'ID3'
+  files[`${USER}/pippo/success-02.wav`] = 'RIFF'
+  const out = await cmd($, 'test pippo')
+  expect(played()).toEqual(['pippo/done', 'pippo/success-01', 'pippo/success-02'])
+  expect(out).toMatch(/1\/17 done: played/)
+  expect(out).toMatch(/15\/17 success \[success-01\.mp3\]: played/)
+  expect(out).toMatch(/15\/17 success \[success-02\.wav\]: played/)
+  expect(out).toMatch(/2\/17 question: \(no file\)/)
+})
+
+test('a folder of yours with files for a sound replaces the bundled files of that sound only', async ($, on) => {
+  const { files, runs, clock } = engine(on)
+  await start($)
+  files[`${USER}/soft/done-01.mp3`] = 'ID3'
+  await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as never)
+  await clock.advance(2_500)
+  await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't2', reason: 'error' } as never)
+  await clock.advance(100)
+  expect(norm(runs[0]!.at(-1)!)).toBe(`${USER}/soft/done-01.mp3`)
+  // error was not touched: the bundled file stays.
+  expect(norm(runs[1]!.at(-1)!).endsWith('/presets/soft/error.wav')).toBe(true)
+  expect(norm(runs[1]!.at(-1)!).includes('/.claude/')).toBe(false)
+})
+
 test('/alert new makes the folder for a preset of yours and says where', async ($, on) => {
   const { files } = engine(on)
   await start($)
@@ -370,7 +429,7 @@ test('/alert new makes the folder for a preset of yours and says where', async (
   const out = await cmd($, 'new pippo')
   expect(out).toContain(`${USER}/pippo`)
   const readme = Object.entries(files).find(([k]) => norm(k) === `${USER}/pippo/README.txt`)![1]
-  for (const name of NAMES) expect(readme).toContain(`${name}.wav`)
+  for (const name of NAMES) expect(readme).toContain(name)
   expect(await cmd($, 'new pippo')).toMatch(/exists already/)
   expect(await cmd($, 'presets')).toMatch(/pippo/)
 })

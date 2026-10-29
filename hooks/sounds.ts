@@ -89,6 +89,25 @@ export function isTestCommand(command: string): boolean {
   return RUNNERS.some(r => r.test(run))
 }
 
+/** The audio formats a preset may hold. */
+export const FORMATS = ['wav', 'mp3']
+
+/**
+ * The files of one sound among the names in a preset's folder: `success.wav`, `success.mp3`, and variants
+ * `success-01.mp3`, `success-2.wav`... (a dash and digits before the dot). Another sound's file never matches
+ * (`limit-5h.wav` is not a variant of `limit`).
+ */
+export function variantsOf(names: string[], sound: string): string[] {
+  const own = new RegExp('^' + sound + '(-[0-9]+)?[.](' + FORMATS.join('|') + ')$', 'i')
+  return names.filter(n => own.test(n)).sort()
+}
+
+/** One of the files, at random and not the one that played last when there is another. */
+export function pickVariant(files: string[], last?: string, random: () => number = Math.random): string | undefined {
+  const pool = files.length > 1 ? files.filter(f => f !== last) : files
+  return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]
+}
+
 export type RateLimit = { kind: string; percentUsed: number; resetsAt?: string }
 
 /** From where on a usage window is said to be running out. Anthropic documents no number ("Approaching 5-hour limit"): 75 is the one the third-party sources give. */

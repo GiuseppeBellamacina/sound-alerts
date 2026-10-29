@@ -7,7 +7,7 @@
 - `scripts/play.ps1`: the Windows player (`System.Media.SoundPlayer`). One line out, `ok:played` or `error:<why>`.
 - `scripts/mode.ps1`, `scripts/mode.sh`: read the permission mode a session transcript last recorded (the engine tells a plugin none): `ok:<mode>`, `ok:` or `error:<why>`.
 - `scripts/play.sh`: the macOS and Linux player (`afplay`, else the first of `paplay`, `pw-play`, `aplay`, `ffplay`), the same contract.
-- `presets/<name>/<sound>.wav`: the bundled presets, written by `tools/make-sounds.py`.
+- `presets/<name>/<sound>.wav`: the bundled presets, written by `tools/make-sounds.py`. A user's preset may hold `.mp3` too and several files for a sound (`success-01.mp3`): `variantsOf` and `pickVariant` in `hooks/sounds.ts` find and choose them.
 - `tests/sounds.test.ts` (the rules) and `tests/hooks.test.tsx` (the events, with a mock engine).
 - `tests/windows/play.test.ps1`, `tests/unix/play.test.sh` (the players, the second against stand-ins) and `tests/presets.test.py` (the bundled presets are complete and valid).
 

@@ -11,8 +11,11 @@ $work = Join-Path ([IO.Path]::GetTempPath()) ('sound-alerts-' + [Guid]::NewGuid(
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
   Like 'a file that is not there' (Run @('-Path', (Join-Path $work 'none.wav'))) '^error:no such file: '
+  $ogg = Join-Path $work 'x.ogg'; Set-Content $ogg 'not audio'
+  Check 'a format Windows does not play here' (Run @('-Path', $ogg)) 'error:Windows plays .wav and .mp3 files'
+  # An .mp3 goes through the media player: one that is not audio is refused in a line, not left playing.
   $mp3 = Join-Path $work 'x.mp3'; Set-Content $mp3 'not audio'
-  Check 'only .wav' (Run @('-Path', $mp3)) 'error:Windows plays .wav files only'
+  Check 'an mp3 that is not audio' (Run @('-Path', $mp3)) 'error:the file could not be read as audio'
   $bad = Join-Path $work 'bad.wav'; Set-Content $bad 'not a wav'
   Like 'a .wav that is not one says why, in one line' (Run @('-Path', $bad)) '^error:.+'
   foreach ($preset in 'soft', 'retro') {

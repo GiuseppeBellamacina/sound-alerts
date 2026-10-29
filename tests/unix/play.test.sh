@@ -47,7 +47,22 @@ stub ffplay ':'
 check 'ffplay works' "$(run "$SOUND")" 'ok:played'
 check 'ffplay arguments' "$(calls)" "uname;ffplay [-nodisp] [-autoexit] [-loglevel] [quiet] [$SOUND];"
 rm -f "$STUBS/ffplay"
-check 'no player at all says so' "$(run "$SOUND")" 'error:no working player (tried paplay, pw-play, aplay, ffplay)'
+check 'no player at all says so' "$(run "$SOUND")" 'error:no working player (tried paplay, pw-play, ffplay, mpv, mpg123, aplay)'
+# An mp3: the players that cannot play it fail, the next one gets its chance.
+cp "$SOUND" "$WORK/clip.mp3"
+stub paplay 'exit 1'
+stub aplay 'exit 1'
+stub mpg123 ':'
+check 'an mp3 reaches the first player that can play it' "$(run "$WORK/clip.mp3")" 'ok:played'
+check 'in the order paplay, aplay, mpg123' "$(calls)" "uname;paplay [$WORK/clip.mp3];mpg123 [-q] [$WORK/clip.mp3];"
+rm -f "$STUBS/paplay" "$STUBS/aplay" "$STUBS/mpg123"
+stub mpv ':'
+check 'mpv works' "$(run "$WORK/clip.mp3")" 'ok:played'
+check 'mpv arguments' "$(calls)" "uname;mpv [--no-video] [--really-quiet] [$WORK/clip.mp3];"
+rm -f "$STUBS/mpv"
+stub aplay 'exit 1'
+check 'only players that fail: none worked' "$(run "$WORK/clip.mp3")" 'error:no working player (tried paplay, pw-play, ffplay, mpv, mpg123, aplay)'
+rm -f "$STUBS/aplay"
 
 # A path with spaces reaches the player whole.
 mkdir -p "$WORK/a folder"
