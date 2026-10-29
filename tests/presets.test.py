@@ -9,11 +9,11 @@ import sys
 import wave
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-names = re.findall(r"\{ name: '([a-z-]+)', by:", open(os.path.join(ROOT, 'hooks', 'sounds.ts'), encoding='utf-8').read())
+names = re.findall(r"\{ name: '([a-z0-9-]+)', by:", open(os.path.join(ROOT, 'hooks', 'sounds.ts'), encoding='utf-8').read())
 failures = []
 
-if len(names) != 16:
-    failures.append(f'expected 16 cases in hooks/sounds.ts, found {len(names)}')
+if len(names) != 17:
+    failures.append(f'expected 17 cases in hooks/sounds.ts, found {len(names)}')
 
 presets = sorted(p for p in glob.glob(os.path.join(ROOT, 'presets', '*')) if os.path.isdir(p))
 if len(presets) < 2:
