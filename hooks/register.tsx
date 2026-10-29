@@ -22,6 +22,8 @@ let queue: Promise<unknown> = Promise.resolve()
 const fired = new Set<string>()
 const lastAt = new Map<string, number>()
 let lastByClaude = 0
+/** A player may run as long as its longest clip: Windows plays an mp3 for at most 30 seconds, plus its start. */
+const PLAYER_TIMEOUT_MS = 40_000
 let testing = false
 let promptChecked = false
 /** The permission mode read for the prompts counted so far: it is written once per prompt, so one reading serves all its asks. */
@@ -100,7 +102,7 @@ async function systemOf($: EngineInterface): Promise<System> {
 /** Plays one file with the system's player and answers its one line. Two sounds may overlap: they are not queued. */
 async function runPlayer($: EngineInterface, file: string): Promise<string> {
   const argv = playerArgv(await systemOf($), $.plugin.root, file)
-  const run = await $.process.run(argv, { timeoutMs: 15_000 }).catch(err => ({ exitCode: 1, stdout: '', stderr: String(err) }))
+  const run = await $.process.run(argv, { timeoutMs: PLAYER_TIMEOUT_MS }).catch(err => ({ exitCode: 1, stdout: '', stderr: String(err) }))
   const line = run.stdout.trim().split(/\r?\n/).filter(Boolean).pop() ?? ''
   return line || run.stderr.trim().slice(0, 160) || 'the player gave no answer'
 }
