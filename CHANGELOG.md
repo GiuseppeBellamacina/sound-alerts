@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+
+- **A small notice when a sound plays**: `meme: success-02.mp3 played`, for a moment, in the engine's notice area (a toast, not a band). `/alert notice off` stops it. A muted sound says nothing; `/alert play` and `/alert test` already say what they play.
+
 ## 0.8.1
 
 - **Fixed**: a sound longer than 15 seconds was cut and reported as an error (`still running after 15000ms`). A player may now run for 40 seconds, more than the 30 an mp3 is played for on Windows.

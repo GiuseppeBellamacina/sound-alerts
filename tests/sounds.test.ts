@@ -18,7 +18,7 @@ test('a preset name is a folder name and nothing else', async () => {
 
 test('the settings read back keep only what is valid', async () => {
   expect(readSettings(undefined)).toEqual(DEFAULTS)
-  expect(readSettings({ enabled: false, preset: 'pippo', muted: ['done', 'nope', 3], claude: false })).toEqual({ enabled: false, preset: 'pippo', muted: ['done'], claude: false })
+  expect(readSettings({ enabled: false, preset: 'pippo', muted: ['done', 'nope', 3], claude: false })).toEqual({ enabled: false, preset: 'pippo', muted: ['done'], claude: false, notice: true })
   expect(readSettings({ preset: '../evil', enabled: 'yes' }).preset).toBe('soft')
   expect(DEFAULTS.muted).toEqual(['start', 'task-done', 'agent-done'])
 })
