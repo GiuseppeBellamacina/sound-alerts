@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- **Fixed**: a command that only *contains* the name of a test runner played `tests-pass`: a script that edits a README with `python - <<'EOF'`, a `sed` that changes a line saying `npm test`. A heredoc body and what is in quotes are now ignored when looking for a test run (a runner named only inside quotes, like `bash -c "pytest"`, is not seen: Claude can say it with `tests-pass`).
+
 ## 0.5.0
 
 - **Limit sounds**: `limit-warning` is gone. `limit-5h` and `limit-week` play when the 5-hour or the 7-day window passes **75%**, and `limit` when any window is used up. A preset of yours with a `limit-warning.wav` should rename it to `limit-5h.wav` (and add `limit-week.wav`).

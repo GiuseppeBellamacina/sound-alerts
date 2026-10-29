@@ -1,7 +1,7 @@
 {
   "name": "sound-alerts",
   "displayName": "Sound Alerts",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Notification sounds for Claude Code: when Claude finishes, asks you something, needs a permission, runs tests or hits a limit. Presets of your own are folders of .wav files.",
   "author": {
     "name": "Giuseppe Bellamacina",

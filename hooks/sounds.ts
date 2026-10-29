@@ -79,9 +79,17 @@ const RUNNERS = [
 /** A command that only talks about tests (a commit message, a search) is not a test run. */
 const TALKS = /^\s*(?:git|gh|echo|grep|rg|cat|ls|type|findstr|select-string|write-output|write-host)\b/i
 
+/** What a command runs, without the text it carries: a heredoc body and what is in quotes are data (a script that edits a README says "npm test"). */
+const withoutText = (command: string) =>
+  command
+    .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2(?=\s|$)/g, ' ')
+    .replace(/"[^"\n]*"|'[^'\n]*'/g, '""')
+
+// shortcut: a runner named only inside quotes (bash -c "pytest") is not seen; Claude can say tests-pass itself.
 export function isTestCommand(command: string): boolean {
   if (TALKS.test(command)) return false
-  return RUNNERS.some(r => r.test(command.toLowerCase()))
+  const run = withoutText(command).toLowerCase()
+  return RUNNERS.some(r => r.test(run))
 }
 
 export type RateLimit = { kind: string; percentUsed: number; resetsAt?: string }
