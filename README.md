@@ -30,7 +30,7 @@ Then `/reload-plugins` (or start a new session). Try it: `/alert play done`.
 | --- | --- | --- |
 | `done` | Claude finished its turn (not when you interrupt it) | the plugin |
 | `question` | Claude asks you a question (`AskUserQuestion`) | the plugin |
-| `permission` | a permission prompt waits for you | the plugin |
+| `permission` | a permission prompt has waited for you 3 seconds (`/alert permission <seconds>`; in Claude's auto mode the classifier answers at once, so it stays quiet) | the plugin |
 | `plan` | a plan waits for your approval | the plugin |
 | `task-done` | a background task finished (**muted** at first: `/alert unmute task-done`) | the plugin |
 | `agent-done` | a subagent finished (**muted** at first: `/alert unmute agent-done`) | the plugin |
@@ -90,6 +90,7 @@ A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces o
 | `/alert play <sound>` | Plays one now, even if it is muted. |
 | `/alert test [preset]` | Plays all sixteen one after the other, muted ones too, saying which one is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
 | `/alert mute <sound>...` · `unmute <sound>...` · `unmute all` | Silences some sounds. `start` is muted at first. |
+| `/alert permission <seconds>` | How long a permission prompt must have waited before its sound plays: 3 by default, 0 for at once. A prompt answered sooner, or auto mode, makes no sound. |
 | `/alert claude on` · `off` | Whether Claude may play sounds itself. |
 | `/alert log` | The last things the plugin saw. Read it when a sound does not play. |
 

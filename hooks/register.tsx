@@ -23,6 +23,8 @@ const fired = new Set<string>()
 const lastAt = new Map<string, number>()
 let lastByClaude = 0
 let testing = false
+/** Permission sounds that wait to see whether the prompt is still open, by tool call. */
+const waiting = new Map<string, { cancel: () => void }>()
 
 const home = async ($: EngineInterface) => (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')) ?? '.'
 /** Where the user's own presets live: outside the plugin's folder, which an update replaces. */
@@ -136,6 +138,7 @@ const HELP = [
   '/alert play <sound>             hear one now (even if it is muted)',
   '/alert test [preset]            hear all of them one after the other, saying which one is playing (muted ones too)',
   '/alert mute <sound>... | unmute <sound>... | unmute all',
+  '/alert permission <seconds>     the permission sound plays once a prompt has waited that long (default 3; 0: at once)',
   '/alert claude on | off          whether Claude may play sounds itself',
   '/alert log                      what the plugin saw lately (when a sound does not play)',
 ].join('\n')
@@ -233,6 +236,12 @@ async function command($: EngineInterface, args: string): Promise<string> {
       await save($, { ...s, muted })
       return `Muted: ${muted.join(', ') || 'none'}.`
     }
+    case 'permission': {
+      const n = Number(rest[0])
+      if (rest[0] === undefined || !(n >= 0 && n <= 60)) return `The permission sound plays after a prompt has waited ${s.permissionAfter} s: /alert permission <0 to 60 seconds> (0: at once)`
+      await save($, { ...s, permissionAfter: Math.round(n) })
+      return `The permission sound plays after a prompt has waited ${Math.round(n)} s${n === 0 ? ' (at once)' : ''}.`
+    }
     case 'claude': {
       const v = rest[0]?.toLowerCase()
       if (v !== 'on' && v !== 'off') return `Claude may play sounds itself: ${s.claude ? 'yes' : 'no'}. /alert claude on | off`
@@ -282,7 +291,10 @@ export const register: Register = on => {
       const approver = (e as { approver?: string }).approver
       if (name) {
         note(`${name} asked by ${e.tool}: approver ${approver ?? 'none'}, decision ${out.decision}`)
-        later($, 0, () => sound($, name, e.tool))
+        const wait = name === 'permission' ? (await load($)).permissionAfter : 0
+        // Auto mode answers a permission at once and the command ends within moments; a person takes longer. The call's end cancels this.
+        const timer = later($, wait * 1000, () => sound($, name, e.tool))
+        if (wait > 0) waiting.set(e.tool_use_id, timer)
       }
     }
     return out
@@ -290,7 +302,14 @@ export const register: Register = on => {
 
   on('tool.call', async ($, e, next) => {
     if (e.tool === toolName) return { result: await answerTool($, e as unknown as Record<string, unknown>) }
-    const ran = await next(e)
+    let ran: Awaited<ReturnType<typeof next>>
+    try {
+      ran = await next(e)
+    } finally {
+      // The prompt was answered, and the command it allowed is over: no sound for a permission that is no longer waiting.
+      if (e.tool_use_id !== undefined) waiting.get(e.tool_use_id)?.cancel()
+      if (e.tool_use_id !== undefined) waiting.delete(e.tool_use_id)
+    }
     const command = (e as unknown as { command?: unknown }).command
     if ((e.tool === 'Bash' || e.tool === 'PowerShell') && typeof command === 'string' && ran.deny === undefined && isTestCommand(command)) {
       const result = (ran as { result?: Record<string, unknown> }).result
