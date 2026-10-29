@@ -104,6 +104,41 @@ test('the player may run as long as the longest clip, not 15 seconds', async ($,
   expect(timeouts.at(-1)).toBeGreaterThanOrEqual(35_000)
 })
 
+test('a sound that plays says so in a small notice, unless the notice is off or the sound is muted', async ($, on) => {
+  const { files, notices, clock } = engine(on)
+  await start($)
+  const done = () => $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as never)
+  await done()
+  await clock.advance(2_500)
+  expect(notices.length).toBe(1)
+  expect(notices[0]).toContain('soft: done.wav played')
+
+  // The file that was picked, with the preset it is in.
+  files[`${USER}/pippo/done-01.mp3`] = 'ID3'
+  await cmd($, 'preset pippo')
+  await done()
+  await clock.advance(2_500)
+  expect(notices.at(-1)).toContain('pippo: done-01.mp3 played')
+
+  // A muted sound plays nothing and says nothing.
+  await cmd($, 'mute done')
+  await done()
+  await clock.advance(2_500)
+  expect(notices.length).toBe(2)
+  await cmd($, 'unmute done')
+
+  expect(await cmd($, 'notice')).toMatch(/is on/)
+  expect(await cmd($, 'notice off')).toBe('The notice with what played is off.')
+  await done()
+  await clock.advance(2_500)
+  expect(notices.length).toBe(2)
+  expect(await cmd($, 'notice nope')).toMatch(/is off: \/alert notice/)
+  await cmd($, 'notice on')
+  await done()
+  await clock.advance(2_500)
+  expect(notices.length).toBe(3)
+})
+
 test('a turn that ended plays done, in the player of the system', async ($, on) => {
   const { runs, played, clock } = engine(on)
   await start($)
@@ -385,12 +420,12 @@ test('a sound with several files plays one at random, never the same twice in a 
   await cmd($, 'preset pippo')
   const play = () => $.tool.call({ tool: TOOL, sound: 'success' } as never)
   const heard: string[] = []
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 40; i++) {
     await play()
     await clock.advance(2_500)
     heard.push(played().at(-1)!)
   }
-  expect(runs.length).toBe(8)
+  expect(runs.length).toBe(40)
   expect(new Set(heard)).toEqual(new Set(['pippo/success-01', 'pippo/success-02', 'pippo/success']))
   for (let i = 1; i < heard.length; i++) expect(heard[i]).not.toBe(heard[i - 1])
   // The file that plays is a real one of the sound: neither another sound's nor a file that is not audio.

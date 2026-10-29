@@ -93,6 +93,7 @@ A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces o
 | `/alert play <sound>` | Plays one now, even if it is muted. |
 | `/alert test [preset]` | Plays every file of the seventeen sounds one after the other, variants too, muted ones too, saying which file is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
 | `/alert mute <sound>...` · `unmute <sound>...` · `unmute all` | Silences some sounds. `start` is muted at first. |
+| `/alert notice on` · `notice off` | The small notice that shows for a moment when a sound plays, with the preset and the file (`meme: success-02.mp3 played`). On by default; not shown for a muted sound. |
 | `/alert claude on` · `off` | Whether Claude may play sounds itself. |
 | `/alert log` | The last things the plugin saw. Read it when a sound does not play. |
 

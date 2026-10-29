@@ -167,6 +167,8 @@ async function sound($: EngineInterface, name: string, why: string, force = fals
     note(`${name}: no file for it in ${s.preset}`)
     return `the preset ${s.preset} has no file for ${name}`
   }
+  // What is about to play, said in the small notice area; the command that plays by hand says it in its answer.
+  if (s.notice && !force) $.ui.toast(`${s.preset}: ${file.split('/').pop()} played`)
   if (force) {
     const line = await runPlayer($, file)
     note(`${name} (${why}): ${line}`)
@@ -195,6 +197,7 @@ const HELP = [
   '/alert play <sound>             hear one now (even if it is muted)',
   '/alert test [preset]            hear all of them one after the other, saying which one is playing (muted ones too)',
   '/alert mute <sound>... | unmute <sound>... | unmute all',
+  '/alert notice on | off          the small notice with what played ("meme: success-02.mp3 played")',
   '/alert claude on | off          whether Claude may play sounds itself',
   '/alert log                      what the plugin saw lately (when a sound does not play)',
 ].join('\n')
@@ -295,6 +298,12 @@ async function command($: EngineInterface, args: string): Promise<string> {
       const muted = verb.toLowerCase() === 'mute' ? [...new Set([...s.muted, ...names])] : s.muted.filter(m => !names.includes(m))
       await save($, { ...s, muted })
       return `Muted: ${muted.join(', ') || 'none'}.`
+    }
+    case 'notice': {
+      const v = rest[0]?.toLowerCase()
+      if (v !== 'on' && v !== 'off') return `The notice with what played is ${s.notice ? 'on' : 'off'}: /alert notice on | off`
+      await save($, { ...s, notice: v === 'on' })
+      return `The notice with what played is ${v}.`
     }
     case 'claude': {
       const v = rest[0]?.toLowerCase()

@@ -39,9 +39,11 @@ export type AlertSettings = {
   muted: string[]
   /** Whether Claude may play sounds itself, with its tool. */
   claude: boolean
+  /** Show a small notice with what played: `meme: success-02.mp3 played`. */
+  notice: boolean
 }
 
-export const DEFAULTS: AlertSettings = { enabled: true, preset: 'soft', muted: ['start', 'task-done', 'agent-done'], claude: true }
+export const DEFAULTS: AlertSettings = { enabled: true, preset: 'soft', muted: ['start', 'task-done', 'agent-done'], claude: true, notice: true }
 
 /** A preset name is a folder name: letters, digits, dash and underscore, so no path can come out of it. */
 export const isPresetName = (name: string) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/.test(name)
@@ -54,6 +56,7 @@ export function readSettings(stored: unknown): AlertSettings {
     preset: typeof s.preset === 'string' && isPresetName(s.preset) ? s.preset : DEFAULTS.preset,
     muted: Array.isArray(s.muted) ? s.muted.filter((x): x is string => typeof x === 'string' && isSound(x)) : DEFAULTS.muted,
     claude: typeof s.claude === 'boolean' ? s.claude : DEFAULTS.claude,
+    notice: typeof s.notice === 'boolean' ? s.notice : DEFAULTS.notice,
   }
 }
 
