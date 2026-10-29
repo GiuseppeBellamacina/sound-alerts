@@ -61,6 +61,22 @@ test('a test run is told by the runner, not by the word test', async () => {
   ]) expect(isTestCommand(no)).toBe(false)
 })
 
+test('text a command carries is not a command: a heredoc body and what is in quotes', async () => {
+  const heredoc = (body: string, after = '') => `python - <<'PYEOF'
+${body}
+PYEOF${after}`
+  // A script that edits a README or a test file says "npm test" and "claude plugin test" without running them.
+  expect(isTestCommand(heredoc("print('claude plugin test')"))).toBe(false)
+  expect(isTestCommand(heredoc('npm test\npytest -q'))).toBe(false)
+  expect(isTestCommand(heredoc('x = 1', '\nnpm test'))).toBe(true)
+  expect(isTestCommand(`sed -i 's/pytest/jest/' package.json && claude plugin test .`)).toBe(true)
+  expect(isTestCommand(`sed -i 's/a/npm test/' README.md`)).toBe(false)
+  expect(isTestCommand('python -c "import pytest"')).toBe(false)
+  expect(isTestCommand('pytest -k "name with spaces" -q')).toBe(true)
+  expect(isTestCommand('npm test -- -t "a name"')).toBe(true)
+  expect(isTestCommand(`cd app && npx vitest run --reporter='dot'`)).toBe(true)
+})
+
 test('a limit is said once for each level and each time it resets', async () => {
   const fired = new Set<string>()
   const w = (percentUsed: number, resetsAt = 'r1') => [{ kind: 'five_hour', percentUsed, resetsAt }]
