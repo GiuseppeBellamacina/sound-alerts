@@ -30,7 +30,7 @@ Then `/reload-plugins` (or start a new session). Try it: `/alert play done`.
 | --- | --- | --- |
 | `done` | Claude finished its turn (not when you interrupt it) | the plugin |
 | `question` | Claude asks you a question (`AskUserQuestion`) | the plugin |
-| `permission` | a permission prompt has waited for you 3 seconds (`/alert permission <seconds>`); silent in Claude's auto mode, where the classifier answers | the plugin |
+| `permission` | a permission prompt waits for you; **silent in Claude's auto mode**, where the classifier answers (the mode is read from the session's transcript) | the plugin |
 | `plan` | a plan waits for your approval | the plugin |
 | `task-done` | a background task finished (**muted** at first: `/alert unmute task-done`) | the plugin |
 | `agent-done` | a subagent finished (**muted** at first: `/alert unmute agent-done`) | the plugin |
@@ -51,7 +51,7 @@ Notes:
 - A test run is told by the program's name at the start of the command (or after `&&`, `;`, `npx`, `run`), never by the word "test": `git commit -m "add pytest"` plays nothing, and neither does `npm install jest`. Pass or fail is the command's exit code. A test sent to the background plays `task-done` when it ends, not before.
 - Each limit sounds once for each level, and again after it resets. The context sound comes again only after the context was emptied (a compaction).
 - The same sound does not repeat within a second and a half: five subagents ending together play `agent-done` once.
-- `limit-5h`, `limit-week`, `limit` and `context-full` depend on what your account reports: off a subscription, the limit sounds never play. The 75% is a number I took from third-party sources: Anthropic's own pages say "approaching the limit" without one. A limit sounds when the turn that crossed it ends, a moment after `done` so that they do not overlap, and once for each time its window resets. If a limit is already past 75% when you open a session, it is said once, at the first prompt.
+- `limit-5h`, `limit-week`, `limit` and `context-full` depend on what your account reports: off a subscription, the limit sounds never play. The 75% is a number I took from third-party sources: Anthropic's own pages say "approaching the limit" without one. When several things are crossed together only one sound plays: a window used up first, then the window further along (the week on a tie), then the context; the other windows count as said, and the context waits for the next measure. A limit sounds when the turn that crossed it ends, a moment after `done` so that they do not overlap, and once for each time its window resets. If a limit is already past 75% when you open a session, it is said once, at the first prompt.
 
 ## Presets
 
@@ -91,7 +91,6 @@ A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces o
 | `/alert play <sound>` | Plays one now, even if it is muted. |
 | `/alert test [preset]` | Plays all seventeen one after the other, muted ones too, saying which one is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
 | `/alert mute <sound>...` · `unmute <sound>...` · `unmute all` | Silences some sounds. `start` is muted at first. |
-| `/alert permission <seconds>` | How long a permission prompt must have waited before its sound plays: 3 by default, 0 for at once. A prompt answered sooner, or auto mode, makes no sound. |
 | `/alert claude on` · `off` | Whether Claude may play sounds itself. |
 | `/alert log` | The last things the plugin saw. Read it when a sound does not play. |
 

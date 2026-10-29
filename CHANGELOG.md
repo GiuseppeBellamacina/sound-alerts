@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0
+
+- **The wait of `/alert permission` is gone**: the mode is read from the transcript, so the permission sound plays at once, and not at all in auto mode. The reading is kept for the prompt it was made on.
+- **One limit sound at a time.** When several limits are crossed together (the 5-hour and the weekly window past 75%, a window used up with a warning, the context on top), one sound plays: a window used up, else the window further along (the week on a tie), else the context. The other windows count as said; the context waits for the next measure.
+
 ## 0.6.0
 
 - **No permission sound in Claude's auto mode.** A plugin is told no permission mode, but the session's transcript records it on each prompt: when the permission sound is about to play, a small script (`scripts/mode.ps1`, `scripts/mode.sh`) reads the last 6 MB of the transcript for the last `permissionMode`, and `auto` stays silent. The 3-second wait of 0.4.0 stays as it was for the other modes, and is what is left when the mode cannot be read (a new session with no prompt yet). `/alert log` says which mode it saw.
