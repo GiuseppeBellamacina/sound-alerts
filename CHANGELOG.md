@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- `/alert log` now notes each question, plan and permission with the check's `approver`, even when the sound is muted. In Claude's auto mode the classifier answers the asks and the permission sound still plays: `/alert mute permission` stops it, and the log is there to tell the two cases apart.
+
 ## 0.3.1
 
 - `task-done` and `agent-done` are muted at first, like `start` (they fire often during a long job). `/alert unmute task-done agent-done` brings them back. Settings you already saved are kept as they are: mute them with `/alert mute task-done agent-done`.

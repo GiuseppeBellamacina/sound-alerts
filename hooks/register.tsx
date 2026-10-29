@@ -278,7 +278,12 @@ export const register: Register = on => {
     const out = await next(e)
     if (e.tool_use_id !== undefined) {
       const name = e.tool === 'AskUserQuestion' ? 'question' : e.tool === 'ExitPlanMode' ? 'plan' : out.decision === 'ask' ? 'permission' : ''
-      if (name) later($, 0, () => sound($, name, e.tool))
+      // The approver says who can be asked: logged, to see whether it tells a person's prompt from the auto mode's classifier.
+      const approver = (e as { approver?: string }).approver
+      if (name) {
+        note(`${name} asked by ${e.tool}: approver ${approver ?? 'none'}, decision ${out.decision}`)
+        later($, 0, () => sound($, name, e.tool))
+      }
     }
     return out
   })
