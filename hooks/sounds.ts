@@ -39,11 +39,9 @@ export type AlertSettings = {
   muted: string[]
   /** Whether Claude may play sounds itself, with its tool. */
   claude: boolean
-  /** Seconds a permission prompt must have waited before its sound plays (0: at once). Auto mode answers at once and never gets there. */
-  permissionAfter: number
 }
 
-export const DEFAULTS: AlertSettings = { enabled: true, preset: 'soft', muted: ['start', 'task-done', 'agent-done'], claude: true, permissionAfter: 3 }
+export const DEFAULTS: AlertSettings = { enabled: true, preset: 'soft', muted: ['start', 'task-done', 'agent-done'], claude: true }
 
 /** A preset name is a folder name: letters, digits, dash and underscore, so no path can come out of it. */
 export const isPresetName = (name: string) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/.test(name)
@@ -56,7 +54,6 @@ export function readSettings(stored: unknown): AlertSettings {
     preset: typeof s.preset === 'string' && isPresetName(s.preset) ? s.preset : DEFAULTS.preset,
     muted: Array.isArray(s.muted) ? s.muted.filter((x): x is string => typeof x === 'string' && isSound(x)) : DEFAULTS.muted,
     claude: typeof s.claude === 'boolean' ? s.claude : DEFAULTS.claude,
-    permissionAfter: typeof s.permissionAfter === 'number' && s.permissionAfter >= 0 && s.permissionAfter <= 60 ? s.permissionAfter : DEFAULTS.permissionAfter,
   }
 }
 
@@ -101,26 +98,30 @@ export const WARN_AT = 75
 const warning = (kind: string) => (kind === 'five_hour' ? 'limit-5h' : kind.startsWith('seven_day') ? 'limit-week' : '')
 
 /**
- * Which limit sounds a measurement calls for, each once: a window past 75% (the 5-hour and the 7-day each have theirs) and
- * a window used up, once for each time it resets; the context window past 90%, again only after it fell under 70% (a compaction).
- * `fired` is what was already said, and comes back changed.
+ * The limit sound a measurement calls for: at most one, however many things were crossed together.
+ *
+ * A window used up (`limit`) comes before a window running out; of two windows running out the one further along speaks
+ * (the week on a tie), and the other counts as said. Each is said once for each time its window resets. The context window
+ * past 90% comes last, and waits for a measure with nothing else to say; it is said again only after it fell under 70%
+ * (a compaction). `fired` is what was already said, and comes back changed.
  */
 export function limitSounds(fired: Set<string>, rateLimits: RateLimit[], contextPercent: number | undefined): string[] {
-  const out: string[] = []
+  const picks: { sound: string; marks: string[]; rank: number; percent: number }[] = []
   for (const w of rateLimits) {
     const at = `${w.kind}|${w.resetsAt ?? ''}`
-    for (const [level, sound] of [[100, 'limit'], [WARN_AT, warning(w.kind)]] as const) {
-      if (sound && w.percentUsed >= level && !fired.has(`${at}|${level}`)) {
-        fired.add(`${at}|${level}`)
-        // Both levels are marked: reaching 100 at once does not play the warning after the limit.
-        if (level === 100) fired.add(`${at}|${WARN_AT}`)
-        out.push(sound)
-        break
-      }
+    if (w.percentUsed >= 100 && !fired.has(`${at}|100`)) {
+      // Both levels are marked: reaching 100 at once does not play the warning after the limit.
+      picks.push({ sound: 'limit', marks: [`${at}|100`, `${at}|${WARN_AT}`], rank: 0, percent: w.percentUsed })
+    } else if (w.percentUsed >= WARN_AT && w.percentUsed < 100 && warning(w.kind) && !fired.has(`${at}|${WARN_AT}`)) {
+      picks.push({ sound: warning(w.kind), marks: [`${at}|${WARN_AT}`], rank: 1, percent: w.percentUsed })
     }
   }
+  picks.sort((x, y) => x.rank - y.rank || y.percent - x.percent || (y.sound === 'limit-week' ? 1 : -1))
+  for (const pick of picks) for (const mark of pick.marks) fired.add(mark)
+
+  const out: string[] = picks.length ? [picks[0]!.sound] : []
   if (contextPercent !== undefined) {
-    if (contextPercent >= 90 && !fired.has('context')) {
+    if (contextPercent >= 90 && !fired.has('context') && out.length === 0) {
       fired.add('context')
       out.push('context-full')
     } else if (contextPercent < 70) fired.delete('context')

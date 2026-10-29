@@ -153,7 +153,6 @@ test('a question, a plan and a permission each have a sound, and an allowed call
   const { played, clock } = engine(on)
   on('tool.check', (_, e) => ({ decision: JSON.stringify(e).includes('ASK') ? ('ask' as const) : ('allow' as const) }))
   await start($)
-  await cmd($, 'permission 0')
   await call($, 'AskUserQuestion', { questions: [] })
   await clock.advance(2_000)
   await call($, 'ExitPlanMode', { plan: 'p' })
@@ -165,33 +164,10 @@ test('a question, a plan and a permission each have a sound, and an allowed call
   expect(played()).toEqual(['soft/question', 'soft/plan', 'soft/permission'])
 })
 
-// The test kit refuses a call whose check says ask at once, so a prompt that stays open cannot be played here: that is tried by hand.
-test('a permission answered at once (auto mode) makes no sound, unless the wait is 0', async ($, on) => {
-  const { played, clock } = engine(on)
-  on('tool.check', (_, e) => ({ decision: JSON.stringify(e).includes('ASK') ? ('ask' as const) : ('allow' as const) }))
-  await start($)
-  expect(await cmd($, 'permission')).toMatch(/after a prompt has waited 3 s/)
-  await call($, 'Bash', { command: 'ASK quick' })
-  await clock.advance(10_000)
-  expect(played()).toEqual([])
-  expect(await cmd($, 'log')).toMatch(/permission asked by Bash/)
-
-  expect(await cmd($, 'permission 0')).toMatch(/waited 0 s \(at once\)/)
-  await call($, 'Bash', { command: 'ASK again' })
-  await clock.advance(100)
-  expect(played()).toEqual(['soft/permission'])
-
-  expect(await cmd($, 'permission 8')).toMatch(/waited 8 s/)
-  expect(await cmd($, 'permission 99')).toMatch(/0 to 60/)
-  expect(await cmd($, 'permission x')).toMatch(/0 to 60/)
-  expect(await cmd($, '')).toMatch(/sound-alerts is on/)
-})
-
 test('the permission sound reads the mode from the transcript: nothing in auto mode, a sound in the others or when it is not known', async ($, on) => {
   const { played, clock, session } = engine(on)
   on('tool.check', (_, e) => ({ decision: JSON.stringify(e).includes('ASK') ? ('ask' as const) : ('allow' as const) }))
   await start($)
-  await cmd($, 'permission 0')
 
   session.mode = 'auto'
   await call($, 'Bash', { command: 'ASK one' })

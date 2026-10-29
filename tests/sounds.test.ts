@@ -18,7 +18,7 @@ test('a preset name is a folder name and nothing else', async () => {
 
 test('the settings read back keep only what is valid', async () => {
   expect(readSettings(undefined)).toEqual(DEFAULTS)
-  expect(readSettings({ enabled: false, preset: 'pippo', muted: ['done', 'nope', 3], claude: false })).toEqual({ enabled: false, preset: 'pippo', muted: ['done'], claude: false, permissionAfter: 3 })
+  expect(readSettings({ enabled: false, preset: 'pippo', muted: ['done', 'nope', 3], claude: false })).toEqual({ enabled: false, preset: 'pippo', muted: ['done'], claude: false })
   expect(readSettings({ preset: '../evil', enabled: 'yes' }).preset).toBe('soft')
   expect(DEFAULTS.muted).toEqual(['start', 'task-done', 'agent-done'])
 })
@@ -92,12 +92,44 @@ test('a limit is said once for each level and each time it resets', async () => 
   expect(limitSounds(fired, w(100, 'r3'), 10)).toEqual(['limit'])
   expect(limitSounds(fired, w(101, 'r3'), 10)).toEqual([])
   // Each window has its own sound, and any window used up is the limit.
-  expect(limitSounds(new Set(), [{ kind: 'five_hour', percentUsed: 90 }, { kind: 'seven_day', percentUsed: 85 }], undefined)).toEqual(['limit-5h', 'limit-week'])
+  expect(limitSounds(new Set(), [{ kind: 'five_hour', percentUsed: 80 }], undefined)).toEqual(['limit-5h'])
+  expect(limitSounds(new Set(), [{ kind: 'seven_day', percentUsed: 80 }], undefined)).toEqual(['limit-week'])
   expect(limitSounds(new Set(), [{ kind: 'seven_day', percentUsed: 100 }], undefined)).toEqual(['limit'])
   expect(limitSounds(new Set(), [{ kind: 'seven_day_opus', percentUsed: 80 }], undefined)).toEqual(['limit-week'])
   // A spend limit has no warning, only its end.
   expect(limitSounds(new Set(), [{ kind: 'spend_limit', percentUsed: 90 }], undefined)).toEqual([])
   expect(limitSounds(new Set(), [{ kind: 'spend_limit', percentUsed: 101 }], undefined)).toEqual(['limit'])
+})
+
+test('limits crossed together make one sound, the most urgent, and the others count as said', async () => {
+  const both = (five: number, week: number) => [
+    { kind: 'five_hour', percentUsed: five, resetsAt: 'f' },
+    { kind: 'seven_day', percentUsed: week, resetsAt: 'w' },
+  ]
+  // Two windows past 75 together: the one further along speaks, the other does not speak after it.
+  let fired = new Set<string>()
+  expect(limitSounds(fired, both(80, 90), 10)).toEqual(['limit-week'])
+  expect(limitSounds(fired, both(82, 91), 10)).toEqual([])
+  fired = new Set<string>()
+  expect(limitSounds(fired, both(95, 76), 10)).toEqual(['limit-5h'])
+  expect(limitSounds(fired, both(96, 77), 10)).toEqual([])
+  // A tie goes to the week.
+  expect(limitSounds(new Set(), both(80, 80), 10)).toEqual(['limit-week'])
+  // A window used up comes before one running out, and the warning is not said after it.
+  fired = new Set<string>()
+  expect(limitSounds(fired, both(100, 90), 10)).toEqual(['limit'])
+  expect(limitSounds(fired, both(100, 91), 10)).toEqual([])
+  // One that crosses later has its own sound: it was not part of the first.
+  fired = new Set<string>()
+  expect(limitSounds(fired, both(80, 10), 10)).toEqual(['limit-5h'])
+  expect(limitSounds(fired, both(81, 76), 10)).toEqual(['limit-week'])
+  // Both used up: one limit.
+  expect(limitSounds(new Set(), both(100, 100), 10)).toEqual(['limit'])
+  // The context waits for a measure with nothing else to say.
+  fired = new Set<string>()
+  expect(limitSounds(fired, both(80, 10), 95)).toEqual(['limit-5h'])
+  expect(limitSounds(fired, both(80, 10), 95)).toEqual(['context-full'])
+  expect(limitSounds(fired, both(80, 10), 95)).toEqual([])
 })
 
 test('the context window is said once, and again only after it was emptied', async () => {
