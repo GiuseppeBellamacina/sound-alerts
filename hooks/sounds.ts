@@ -19,8 +19,9 @@ export const SOUNDS: Sound[] = [
   { name: 'tests-pass', by: 'both', when: 'a test command exited 0, or Claude says the tests passed' },
   { name: 'tests-fail', by: 'both', when: 'a test command failed, or Claude says so' },
   { name: 'error', by: 'plugin', when: 'a turn ended on an error (API error, retries run out, context limit)' },
-  { name: 'limit-warning', by: 'plugin', when: 'a usage limit (the 5-hour or 7-day window) passed 80%' },
-  { name: 'limit', by: 'plugin', when: 'a usage limit reached 100%' },
+  { name: 'limit-5h', by: 'plugin', when: 'the 5-hour usage limit passed 75%' },
+  { name: 'limit-week', by: 'plugin', when: 'the 7-day usage limit passed 75%' },
+  { name: 'limit', by: 'plugin', when: 'a usage limit is used up (100%)' },
   { name: 'context-full', by: 'plugin', when: 'the context window passed 90%' },
   { name: 'start', by: 'plugin', when: 'a session starts (muted at first)' },
   { name: 'success', by: 'claude', when: 'Claude says something it did worked' },
@@ -85,20 +86,26 @@ export function isTestCommand(command: string): boolean {
 
 export type RateLimit = { kind: string; percentUsed: number; resetsAt?: string }
 
+/** From where on a usage window is said to be running out. Anthropic documents no number ("Approaching 5-hour limit"): 75 is the one the third-party sources give. */
+export const WARN_AT = 75
+
+/** The sound of a window running out: the 5-hour one, the 7-day one; none for any other (a spend limit has only its 100). */
+const warning = (kind: string) => (kind === 'five_hour' ? 'limit-5h' : kind.startsWith('seven_day') ? 'limit-week' : '')
+
 /**
- * Which limit sounds a measurement calls for, each once: a window past 80% and past 100%, once for each time it resets;
- * the context window past 90%, again only after it fell under 70% (a compaction).
+ * Which limit sounds a measurement calls for, each once: a window past 75% (the 5-hour and the 7-day each have theirs) and
+ * a window used up, once for each time it resets; the context window past 90%, again only after it fell under 70% (a compaction).
  * `fired` is what was already said, and comes back changed.
  */
 export function limitSounds(fired: Set<string>, rateLimits: RateLimit[], contextPercent: number | undefined): string[] {
   const out: string[] = []
   for (const w of rateLimits) {
     const at = `${w.kind}|${w.resetsAt ?? ''}`
-    for (const [level, sound] of [[100, 'limit'], [80, 'limit-warning']] as const) {
-      if (w.percentUsed >= level && !fired.has(`${at}|${level}`)) {
+    for (const [level, sound] of [[100, 'limit'], [WARN_AT, warning(w.kind)]] as const) {
+      if (sound && w.percentUsed >= level && !fired.has(`${at}|${level}`)) {
         fired.add(`${at}|${level}`)
         // Both levels are marked: reaching 100 at once does not play the warning after the limit.
-        if (level === 100) fired.add(`${at}|80`)
+        if (level === 100) fired.add(`${at}|${WARN_AT}`)
         out.push(sound)
         break
       }

@@ -23,6 +23,7 @@ const fired = new Set<string>()
 const lastAt = new Map<string, number>()
 let lastByClaude = 0
 let testing = false
+let promptChecked = false
 /** Permission sounds that wait to see whether the prompt is still open, by tool call. */
 const waiting = new Map<string, { cancel: () => void }>()
 
@@ -321,6 +322,12 @@ export const register: Register = on => {
 
   on('prompt.submit', async ($, e, next) => {
     if (e.origin.kind === 'task-notification') later($, 0, () => sound($, 'task-done', 'background task'))
+    else if (!promptChecked) {
+      // A limit that is over its threshold when the session starts is said once, at the first prompt: the measure only comes after a turn.
+      promptChecked = true
+      const usage = await $.session.usage().catch(() => undefined)
+      if (usage?.rateLimits?.length) for (const name of limitSounds(fired, usage.rateLimits, usage.context?.percent)) later($, 0, () => sound($, name, 'first prompt'))
+    }
     return next(e)
   })
 
@@ -333,7 +340,8 @@ export const register: Register = on => {
 
   // The usage limits and the context window, measured after each turn.
   on('session.measure', async ($, e, next) => {
-    for (const name of limitSounds(fired, e.rateLimits, e.context.percent)) later($, 0, () => sound($, name, 'measure'))
+    // The measure comes with the end of the turn: a moment later, so that it does not play on top of done.
+    for (const name of limitSounds(fired, e.rateLimits, e.context.percent)) later($, 1500, () => sound($, name, 'measure'))
     return next(e)
   })
 }

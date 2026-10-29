@@ -16,7 +16,7 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   const files: Record<string, string> = {}
   const runs: string[][] = []
   const bundled = (path: string) => {
-    const m = /\/presets(?:\/(soft|retro)(?:\/([a-z-]+)\.wav)?)?$/.exec(norm(path))
+    const m = /\/presets(?:\/(soft|retro)(?:\/([a-z0-9-]+)\.wav)?)?$/.exec(norm(path))
     return !!m && !norm(path).includes('/.claude/') && (m[2] === undefined || NAMES.includes(m[2]))
   }
   const notices: string[] = []
@@ -213,10 +213,28 @@ test('the usage limits and the context window play their sounds once', async ($,
   await measure(50, 50)
   await measure(85, 50)
   await measure(86, 95)
-  await clock.advance(2_000)
+  // The sounds of a measure wait a moment, so they do not play on top of done.
+  await clock.advance(1_000)
+  expect(played()).toEqual([])
+  await clock.advance(1_000)
+  expect(played()).toEqual(['soft/limit-5h', 'soft/context-full'])
   await measure(100, 95)
+  await clock.advance(2_000)
+  expect(played()).toEqual(['soft/limit-5h', 'soft/context-full', 'soft/limit'])
+})
+
+test('a limit already past its threshold is said once, at the first prompt of the session', async ($, on) => {
+  const { played, clock } = engine(on)
+  on('session.usage', () => ({ value: { context: { window: 200_000, percent: 10 }, rateLimits: [{ kind: 'seven_day', percentUsed: 80, resetsAt: 'w1' }] } }) as never)
+  await start($)
+  await $.prompt.submit({ text: 'hello', origin: { kind: 'composer' } } as never)
   await clock.advance(100)
-  expect(played()).toEqual(['soft/limit-warning', 'soft/context-full', 'soft/limit'])
+  expect(played()).toEqual(['soft/limit-week'])
+  // Once: the second prompt, and the measure that follows, say nothing more.
+  await $.prompt.submit({ text: 'again', origin: { kind: 'composer' } } as never)
+  await $.session.measure({ context: { window: 200_000, percent: 10 }, rateLimits: [{ kind: 'seven_day', percentUsed: 82, resetsAt: 'w1' }], changed: ['rateLimits'] } as never)
+  await clock.advance(3_000)
+  expect(played()).toEqual(['soft/limit-week'])
 })
 
 test('off, a muted sound and /alert play', async ($, on) => {
@@ -283,18 +301,18 @@ test('/alert test plays every sound of a preset in turn, muted ones too, and say
   const lines = out.split('\n')
   expect(lines[0]).toBe('Preset soft:')
   expect(lines.length).toBe(NAMES.length + 1)
-  expect(lines[1]).toBe('1/16 done: played  (Claude finished its turn)')
-  expect(out).toMatch(/13\/16 start: played/)
+  expect(lines[1]).toBe('1/17 done: played  (Claude finished its turn)')
+  expect(out).toMatch(/14\/17 start: played/)
   expect(notices.length).toBe(NAMES.length)
-  expect(notices[0]).toContain('1/16 done')
+  expect(notices[0]).toContain('1/17 done')
 
   // Another preset, named: only what it has.
   files[`${USER}/pippo/done.wav`] = 'RIFF'
   files[`${USER}/pippo/error.wav`] = 'RIFF'
   const pippo = await cmd($, 'test pippo')
   expect(played().slice(NAMES.length)).toEqual(['pippo/done', 'pippo/error'])
-  expect(pippo).toMatch(/2\/16 question: \(no file\)/)
-  expect(pippo).toMatch(/9\/16 error: played/)
+  expect(pippo).toMatch(/2\/17 question: \(no file\)/)
+  expect(pippo).toMatch(/9\/17 error: played/)
   expect(await cmd($, 'test nope')).toMatch(/No preset "nope"/)
 })
 

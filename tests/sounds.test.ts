@@ -65,17 +65,23 @@ test('a limit is said once for each level and each time it resets', async () => 
   const fired = new Set<string>()
   const w = (percentUsed: number, resetsAt = 'r1') => [{ kind: 'five_hour', percentUsed, resetsAt }]
   expect(limitSounds(fired, w(50), 10)).toEqual([])
-  expect(limitSounds(fired, w(81), 10)).toEqual(['limit-warning'])
+  expect(limitSounds(fired, w(74), 10)).toEqual([])
+  expect(limitSounds(fired, w(75), 10)).toEqual(['limit-5h'])
   expect(limitSounds(fired, w(85), 10)).toEqual([])
   expect(limitSounds(fired, w(100), 10)).toEqual(['limit'])
   expect(limitSounds(fired, w(100.0), 10)).toEqual([])
   // The window reset: it is a new one.
-  expect(limitSounds(fired, w(82, 'r2'), 10)).toEqual(['limit-warning'])
+  expect(limitSounds(fired, w(82, 'r2'), 10)).toEqual(['limit-5h'])
   // Reaching 100 at once is the limit, not a warning after it.
   expect(limitSounds(fired, w(100, 'r3'), 10)).toEqual(['limit'])
   expect(limitSounds(fired, w(101, 'r3'), 10)).toEqual([])
-  // Two windows are two things.
-  expect(limitSounds(new Set(), [{ kind: 'five_hour', percentUsed: 90 }, { kind: 'seven_day', percentUsed: 85 }], undefined)).toEqual(['limit-warning', 'limit-warning'])
+  // Each window has its own sound, and any window used up is the limit.
+  expect(limitSounds(new Set(), [{ kind: 'five_hour', percentUsed: 90 }, { kind: 'seven_day', percentUsed: 85 }], undefined)).toEqual(['limit-5h', 'limit-week'])
+  expect(limitSounds(new Set(), [{ kind: 'seven_day', percentUsed: 100 }], undefined)).toEqual(['limit'])
+  expect(limitSounds(new Set(), [{ kind: 'seven_day_opus', percentUsed: 80 }], undefined)).toEqual(['limit-week'])
+  // A spend limit has no warning, only its end.
+  expect(limitSounds(new Set(), [{ kind: 'spend_limit', percentUsed: 90 }], undefined)).toEqual([])
+  expect(limitSounds(new Set(), [{ kind: 'spend_limit', percentUsed: 101 }], undefined)).toEqual(['limit'])
 })
 
 test('the context window is said once, and again only after it was emptied', async () => {

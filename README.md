@@ -37,8 +37,9 @@ Then `/reload-plugins` (or start a new session). Try it: `/alert play done`.
 | `tests-pass` | a test command exited 0 (`pytest`, `npm test`, `go test`, `cargo test`, `dotnet test`, `make test`, `claude plugin test`, and the like), or Claude says so | the plugin and Claude |
 | `tests-fail` | a test command failed, or Claude says so | the plugin and Claude |
 | `error` | a turn ended on an error: an API error, retries run out, the context limit | the plugin |
-| `limit-warning` | a usage limit (the 5-hour or the 7-day window) passed 80% | the plugin |
-| `limit` | a usage limit reached 100% | the plugin |
+| `limit-5h` | the 5-hour usage limit passed 75% | the plugin |
+| `limit-week` | the 7-day usage limit passed 75% | the plugin |
+| `limit` | a usage limit is used up (100%) | the plugin |
 | `context-full` | the context window passed 90% | the plugin |
 | `start` | a session starts (**muted** at first: `/alert unmute start`) | the plugin |
 | `success` | Claude says something it did worked | Claude |
@@ -50,7 +51,7 @@ Notes:
 - A test run is told by the program's name at the start of the command (or after `&&`, `;`, `npx`, `run`), never by the word "test": `git commit -m "add pytest"` plays nothing, and neither does `npm install jest`. Pass or fail is the command's exit code. A test sent to the background plays `task-done` when it ends, not before.
 - Each limit sounds once for each level, and again after it resets. The context sound comes again only after the context was emptied (a compaction).
 - The same sound does not repeat within a second and a half: five subagents ending together play `agent-done` once.
-- `limit-warning`, `limit` and `context-full` depend on what your account reports: off a subscription, `limit` and `limit-warning` never play.
+- `limit-5h`, `limit-week`, `limit` and `context-full` depend on what your account reports: off a subscription, the limit sounds never play. The 75% is a number I took from third-party sources: Anthropic's own pages say "approaching the limit" without one. A limit sounds when the turn that crossed it ends, a moment after `done` so that they do not overlap, and once for each time its window resets. If a limit is already past 75% when you open a session, it is said once, at the first prompt.
 
 ## Presets
 
@@ -88,7 +89,7 @@ A folder of yours with the name of a bundled preset (`soft`, `retro`) replaces o
 | `/alert remove <name>` | Deletes a preset of yours: it says what goes first, and `/alert remove <name> yes` does it. The bundled presets cannot be removed; for one you added files to, only your files go. |
 | `/alert sounds` | Every case of sound: on or muted, and whether the preset has its file. |
 | `/alert play <sound>` | Plays one now, even if it is muted. |
-| `/alert test [preset]` | Plays all sixteen one after the other, muted ones too, saying which one is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
+| `/alert test [preset]` | Plays all seventeen one after the other, muted ones too, saying which one is playing (status line and a notice) and listing them at the end. Takes about half a minute. |
 | `/alert mute <sound>...` · `unmute <sound>...` · `unmute all` | Silences some sounds. `start` is muted at first. |
 | `/alert permission <seconds>` | How long a permission prompt must have waited before its sound plays: 3 by default, 0 for at once. A prompt answered sooner, or auto mode, makes no sound. |
 | `/alert claude on` · `off` | Whether Claude may play sounds itself. |
@@ -101,7 +102,7 @@ Claude has one tool, `play`, with a sound from the list above (never `start`). I
 ## Safety
 
 - The player is one of two short scripts of the plugin (`scripts/play.ps1`, `scripts/play.sh`), started with the file as its only argument. No shell line is ever built.
-- A preset name is a folder name (letters, digits, `-`, `_`): no path can come out of it. A sound name is one of the sixteen above.
+- A preset name is a folder name (letters, digits, `-`, `_`): no path can come out of it. A sound name is one of the seventeen above.
 - No network and no writes, except `/alert new`, which writes one `README.txt` in the folder it makes.
 - Only the plugin hooks of the Claude Code mod API, never `classic.*`: some security setups skip those hooks without a word.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- **Limit sounds**: `limit-warning` is gone. `limit-5h` and `limit-week` play when the 5-hour or the 7-day window passes **75%**, and `limit` when any window is used up. A preset of yours with a `limit-warning.wav` should rename it to `limit-5h.wav` (and add `limit-week.wav`).
+- A limit sound comes a moment after `done` instead of on top of it, once for each time the window resets. A limit already past its threshold when the session starts is said once, at the first prompt.
+- Seventeen cases of sound now (the bundled presets have all of them).
+
 ## 0.4.0
 
 - **The permission sound plays only if the prompt is still waiting after 3 seconds** (`/alert permission <seconds>`, 0 for at once). Claude's auto mode answers an ask at once and the command ends within moments, so it no longer sounds; a prompt that waits for you does. The wait stops when the command ends. Questions and plans keep their immediate sound.
