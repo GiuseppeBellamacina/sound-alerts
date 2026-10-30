@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1
+
+- **Fixed**: `pytest ... | tail` played `tests-pass` when every test failed: a pipe's exit status is the last command's. The output of a run now decides: a failure line plays `tests-fail` whatever the status, and behind a pipe only a passing summary plays `tests-pass`.
+- **Fixed**: a command was counted as a test run when a runner's name sat anywhere in the line; a runner now has to start a command (`cd app && pytest`, `uv run pytest`), so `pip install pytest` or `ls | grep pytest` play nothing.
+
 ## 0.9.0
 
 - **A small notice when a sound plays**: `meme: success-02.mp3 played`, for a moment, in the engine's notice area (a toast, not a band). `/alert notice off` stops it. A muted sound says nothing; `/alert play` and `/alert test` already say what they play.

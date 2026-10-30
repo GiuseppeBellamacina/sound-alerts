@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, modeArgv, pickVariant, playerArgv, readSettings, variantsOf } from './sounds'
+import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, modeArgv, pickVariant, playerArgv, readSettings, testOutcome, variantsOf } from './sounds'
 import type { AlertSettings, System } from './sounds'
 
 // The guidance lives in the tool's description: it reaches the model whatever other plugins do to the prompt.
@@ -367,7 +367,10 @@ export const register: Register = on => {
     if ((e.tool === 'Bash' || e.tool === 'PowerShell') && typeof command === 'string' && ran.deny === undefined && isTestCommand(command)) {
       const result = (ran as { result?: Record<string, unknown> }).result
       // A command sent to the background has not finished: its end is a task-done.
-      if (typeof result?.backgroundTaskId !== 'string') later($, 0, () => sound($, ran.isError ? 'tests-fail' : 'tests-pass', command.slice(0, 40)))
+      if (typeof result?.backgroundTaskId !== 'string') {
+        const outcome = testOutcome(command, (ran as { text?: string }).text ?? '', ran.isError === true)
+        if (outcome) later($, 0, () => sound($, outcome === 'pass' ? 'tests-pass' : 'tests-fail', command.slice(0, 40)))
+      }
     }
     return ran
   })
