@@ -48,6 +48,9 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
     const text = JSON.stringify(e)
     if (text.includes('FAILS')) return { isError: true, result: 'exit 1', text: 'Exit code 1' } as never
     if (text.includes('BACKGROUND')) return { result: { backgroundTaskId: 'b1' } } as never
+    // A piped run: the exit status is tail's, the output tells the truth.
+    if (text.includes('PIPED_FAIL')) return { result: { ok: true }, text: '1 failed, 2 passed in 0.1s' } as never
+    if (text.includes('PIPED_SILENT')) return { result: { ok: true }, text: '' } as never
     return { result: { ok: true } }
   })
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
@@ -249,6 +252,16 @@ test('a test command that exits 0 plays tests-pass, one that fails plays tests-f
   await call($, 'Bash', { command: 'npm test BACKGROUND' })
   await clock.advance(2_000)
   expect(played()).toEqual(['soft/tests-pass', 'soft/tests-fail'])
+})
+
+test('a test run behind a pipe is judged by its output: a failed run plays tests-fail, a silent pipe plays nothing', async ($, on) => {
+  const { played, clock } = engine(on)
+  await start($)
+  await call($, 'Bash', { command: 'pytest test -v 2>&1 | tail -n 100 PIPED_FAIL' })
+  await clock.advance(2_000)
+  await call($, 'Bash', { command: 'pytest -q 2>&1 | tail -n 100 PIPED_SILENT' })
+  await clock.advance(2_000)
+  expect(played()).toEqual(['soft/tests-fail'])
 })
 
 test('a background task that finished plays task-done', async ($, on) => {

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, pickVariant, playerArgv, readSettings, variantsOf } from '../hooks/sounds'
+import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, pickVariant, playerArgv, readSettings, testOutcome, variantsOf } from '../hooks/sounds'
 
 test('every case of sound is listed once, with who plays it', async () => {
   expect(new Set(NAMES).size).toBe(NAMES.length)
@@ -171,4 +171,25 @@ test('the player is one of our scripts with one argument, never a shell line', a
   expect(win.slice(-4)).toEqual(['-File', 'C:/p/scripts/play.ps1', '-Path', 'C:/s/done.wav'])
   expect(playerArgv('macos', '/p', '/s/done.wav')).toEqual(['bash', '/p/scripts/play.sh', '/s/done.wav'])
   expect(playerArgv('linux', '/p', '/s/done.wav')).toEqual(['bash', '/p/scripts/play.sh', '/s/done.wav'])
+})
+
+test('a test run behind a pipe or || is judged by its output, since the status is the last command of the chain', async () => {
+  expect(testOutcome('pytest test -v 2>&1 | tail -n 100', '3 failed, 1 passed in 0.2s', false)).toBe('fail')
+  expect(testOutcome('pytest -q 2>&1 | tail', '5 passed in 0.1s', false)).toBe('pass')
+  expect(testOutcome('pytest -q 2>&1 | tail', 'collected 0 items', false)).toBe(undefined)
+  expect(testOutcome('npm test || true', '', false)).toBe(undefined)
+  expect(testOutcome('npm test || true', 'Tests: 1 failed', false)).toBe('fail')
+  expect(testOutcome('cd app; npm test', 'Tests: 4 passed', false)).toBe('pass')
+  // Without a mask the exit status is the test's own.
+  expect(testOutcome('npm test', '', false)).toBe('pass')
+  expect(testOutcome('npm test', '', true)).toBe('fail')
+  // Words that are not failures do not fail a run: "0 failed", "failed to connect" on the way to a pass.
+  expect(testOutcome('pytest', '0 failed, 4 passed', false)).toBe('pass')
+  expect(testOutcome('npm test', 'failed to connect to the cache, retrying\nTests: 3 passed', false)).toBe('pass')
+  expect(testOutcome('jest', 'FAIL src/a.test.js', false)).toBe('fail')
+})
+
+test('a test runner is named where a command starts, not anywhere in the line', async () => {
+  for (const no of ['echo pytest', 'pip install pytest', 'npm install jest', 'ls | grep pytest', 'python -c "import pytest"']) expect(isTestCommand(no)).toBe(false)
+  for (const yes of ['cd app && pytest', 'uv run pytest -q', 'npx vitest run', 'python -m pytest']) expect(isTestCommand(yes)).toBe(true)
 })

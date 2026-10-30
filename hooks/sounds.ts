@@ -60,21 +60,20 @@ export function readSettings(stored: unknown): AlertSettings {
   }
 }
 
-/** A command that runs a project's tests. Looked for by the program's name, never by the word "test" alone. */
-const BARE = 'py\\.?test|pytest|unittest|tox|nox|vitest|jest|mocha|ava|karma|rspec|phpunit|ctest|bats|pester|invoke-pester'
-// A program that runs tests counts as the word a command starts with: not `npm install jest`.
-const AS_COMMAND = `(?:^|[;&|(]\\s*|\\b(?:npx|bunx|dlx|exec|run|python3?\\s+-m)\\s+(?:-{1,2}[\\w=.-]+\\s+)*)(?:${BARE})\\b`
+/** Where a command starts: the beginning of a line, after `;` `&` `|` `(`, or after a runner that wraps it (`npx`, `uv run`). */
+const COMMAND_START = '(?:^|[;&|(\\n]\\s*|\\b(?:npx|bunx|dlx|exec|run|python3?\\s+-m|uv\\s+run|poetry\\s+run)\\s+(?:-{1,2}[\\w=.-]+\\s+)*)'
 
+/** A command that runs a project's tests, named where the command starts: not `npm install jest`, not `echo pytest`. */
 const RUNNERS = [
-  new RegExp(AS_COMMAND),
-  /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|t)\b/,
-  /\b(?:bun|deno)\s+test\b/,
-  /\b(?:go|dotnet|cargo)\s+(?:test|nextest)\b/,
-  /\b(?:mvn|mvnw|gradle|gradlew)\b[^|;&\n]*\s(?:test|check)\b/,
-  /\bmake\s+(?:test|check)\b/,
-  /\b(?:playwright|cypress)\s+(?:test|run)\b/,
-  /\bclaude\s+plugin\s+test\b/,
-]
+  'py\\.?test|pytest|unittest|tox|nox|vitest|jest|mocha|ava|karma|rspec|phpunit|ctest|bats|pester|invoke-pester',
+  '(?:npm|pnpm|yarn|bun)\\s+(?:run\\s+)?(?:test|t)',
+  'bun\\s+test|deno\\s+test',
+  'go\\s+test|dotnet\\s+test|cargo\\s+(?:test|nextest)',
+  '(?:\\./)?(?:mvn|mvnw|gradle|gradlew)\\b[^|;&\\n]*\\s(?:test|check)',
+  'make\\s+(?:test|check)',
+  'playwright\\s+(?:test|run)|cypress\\s+run',
+  'claude\\s+plugin\\s+test',
+].map(runner => new RegExp(COMMAND_START + '(?:' + runner + ')\\b'))
 
 /** A command that only talks about tests (a commit message, a search) is not a test run. */
 const TALKS = /^\s*(?:git|gh|echo|grep|rg|cat|ls|type|findstr|select-string|write-output|write-host)\b/i
@@ -90,6 +89,24 @@ export function isTestCommand(command: string): boolean {
   if (TALKS.test(command)) return false
   const run = withoutText(command).toLowerCase()
   return RUNNERS.some(r => r.test(run))
+}
+
+/** A pipe, `||`, `;` or a new line: the exit status of the whole is the last command's, not the test's. */
+const MASKED = /\|\||\||;|\n/
+
+/** Failure lines a runner prints, whatever its exit status says: "3 failed", "FAILED test_x", jest's "FAIL file". */
+const FAILED = [/\b[1-9]\d* (?:failed|failing|errors?)\b/i, /\bFAILED\b|^FAIL\b|\bFAILURES\b|failures=[1-9]|^not ok\b/m]
+/** A summary that passed: "5 passed", jest's "PASS file". */
+const PASSED = [/\b[1-9]\d* passed\b/, /^PASS\b/m]
+
+/**
+ * Whether a test run passed or failed, or cannot be told. A failure in the output wins over the exit status, since a
+ * pipe hides the test's. Behind a pipe with no failure, only a passing summary counts; a clean run with no mask is a pass.
+ */
+export function testOutcome(command: string, output: string, isError: boolean): 'pass' | 'fail' | undefined {
+  if (isError || FAILED.some(r => r.test(output))) return 'fail'
+  if (!MASKED.test(withoutText(command))) return 'pass'
+  return PASSED.some(r => r.test(output)) ? 'pass' : undefined
 }
 
 /** The audio formats a preset may hold. */
