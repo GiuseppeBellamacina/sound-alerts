@@ -26,6 +26,8 @@ let lastByClaude = 0
 const PLAYER_TIMEOUT_MS = 40_000
 let testing = false
 let promptChecked = false
+// When a limit sound was last chosen at the end of a turn: the turn that hit the limit ends as an error too, and only the limit is heard.
+let limitAt = 0
 /** The permission mode read for the prompts counted so far: it is written once per prompt, so one reading serves all its asks. */
 let modeSeen: { turns: number; mode: string } | undefined
 
@@ -389,14 +391,24 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const reason = (e as { reason?: string }).reason
     const name = e.agentId !== undefined ? (reason === 'answer' ? 'agent-done' : '') : reason === 'answer' ? 'done' : reason === 'error' ? 'error' : reason === 'refusal' ? 'attention' : ''
-    if (name) later($, 0, () => sound($, name, e.agentId !== undefined ? `agent ${e.agentId}` : 'turn'))
+    // An error waits for the measure of the same turn: if that says the limit was just reached, the limit is the sound.
+    if (name === 'error' && e.agentId === undefined) {
+      const ended = await $.clock.now()
+      later($, 1000, async () => {
+        if (limitAt >= ended - 1000) return note('error not played: the limit was just reached')
+        await sound($, name, 'turn')
+      })
+    } else if (name) later($, 0, () => sound($, name, e.agentId !== undefined ? `agent ${e.agentId}` : 'turn'))
     return next(e)
   })
 
   // The usage limits and the context window, measured after each turn.
   on('session.measure', async ($, e, next) => {
     // The measure comes with the end of the turn: a moment later, so that it does not play on top of done.
-    for (const name of limitSounds(fired, e.rateLimits, e.context.percent)) later($, 1500, () => sound($, name, 'measure'))
+    for (const name of limitSounds(fired, e.rateLimits, e.context.percent)) {
+      if (name === 'limit') limitAt = await $.clock.now()
+      later($, 1500, () => sound($, name, 'measure'))
+    }
     return next(e)
   })
 }

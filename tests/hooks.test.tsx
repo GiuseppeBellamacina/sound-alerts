@@ -292,6 +292,24 @@ test('the usage limits and the context window play their sounds once', async ($,
   expect(played()).toEqual(['soft/limit-5h', 'soft/context-full', 'soft/limit'])
 })
 
+test('the turn that hits the limit ends as an error too: only the limit is heard; an error after it is heard', async ($, on) => {
+  const { played, clock } = engine(on)
+  await start($)
+  const measure = (percentUsed: number) =>
+    $.session.measure({ context: { window: 200_000, percent: 10 }, rateLimits: [{ kind: 'five_hour', percentUsed, resetsAt: 'r1' }], changed: ['rateLimits'] } as never)
+  // The error comes with the measure that says 100%, in either order.
+  await done($, { reason: 'error' })
+  await measure(100)
+  await clock.advance(3_000)
+  expect(played()).toEqual(['soft/limit'])
+  // The person writes again, the limit is already there: the error is heard.
+  await clock.advance(60_000)
+  await done($, { reason: 'error' })
+  await measure(100)
+  await clock.advance(3_000)
+  expect(played()).toEqual(['soft/limit', 'soft/error'])
+})
+
 test('a limit already past its threshold is said once, at the first prompt of the session', async ($, on) => {
   const { played, clock } = engine(on)
   on('session.usage', () => ({ value: { context: { window: 200_000, percent: 10 }, rateLimits: [{ kind: 'seven_day', percentUsed: 80, resetsAt: 'w1' }] } }) as never)
@@ -471,7 +489,7 @@ test('a folder of yours with files for a sound replaces the bundled files of tha
   await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as never)
   await clock.advance(2_500)
   await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't2', reason: 'error' } as never)
-  await clock.advance(100)
+  await clock.advance(1_100)
   expect(norm(runs[0]!.at(-1)!)).toBe(`${USER}/soft/done-01.mp3`)
   // error was not touched: the bundled file stays.
   expect(norm(runs[1]!.at(-1)!).endsWith('/presets/soft/error.wav')).toBe(true)

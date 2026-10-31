@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.2
+
+- **Fixed**: the turn that hits a usage limit also ends as an error, and both `limit` and `error` played. Now only `limit` is heard, and only for the turn in which the limit was just reached: if you write again with the limit already reached, `error` plays as before. An `error` now waits a second so the measure of the same turn can say whether the limit was just reached.
+
 ## 0.9.1
 
 - **Fixed**: `pytest ... | tail` played `tests-pass` when every test failed: a pipe's exit status is the last command's. The output of a run now decides: a failure line plays `tests-fail` whatever the status, and behind a pipe only a passing summary plays `tests-pass`.
