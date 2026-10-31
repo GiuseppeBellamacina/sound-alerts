@@ -6,6 +6,7 @@
 - `hooks/sounds.ts`: pure functions: the cases of sound, the settings, how a test command is told, when a limit sounds, the player's command line. No engine in it, so it is tested alone.
 - `scripts/play.ps1`: the Windows player (`System.Media.SoundPlayer`). One line out, `ok:played` or `error:<why>`.
 - `scripts/mode.ps1`, `scripts/mode.sh`: read the permission mode a session transcript last recorded (the engine tells a plugin none): `ok:<mode>`, `ok:` or `error:<why>`.
+- `scripts/limit.ps1`, `scripts/limit.sh`: read whether the last reply of a transcript was a usage limit that rejected the request (`ok:<window>|<resets at, epoch seconds>`, `ok:` or `error:<why>`): what tells a limit from an error at the end of a turn.
 - `scripts/play.sh`: the macOS and Linux player (`afplay`, else the first of `paplay`, `pw-play`, `aplay`, `ffplay`), the same contract.
 - `presets/<name>/<sound>.wav`: the bundled presets, written by `tools/make-sounds.py`. A user's preset may hold `.mp3` too and several files for a sound (`success-01.mp3`): `variantsOf` and `pickVariant` in `hooks/sounds.ts` find and choose them.
 - `tests/sounds.test.ts` (the rules) and `tests/hooks.test.tsx` (the events, with a mock engine).

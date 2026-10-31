@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.2
+## 0.9.3
 
 - **Fixed**: the turn that hits a usage limit also ends as an error, and both `limit` and `error` played. Now only `limit` is heard, at once and with no waiting: when a turn ends as an error the plugin asks the usage the session reports and, failing that, the last reply in the transcript (`scripts/limit.ps1` / `limit.sh`, like the permission mode), and compares that window and its reset with what it already said. A limit said in this turn is not said twice; if you write again with the limit already reached, `error` plays as before.
 

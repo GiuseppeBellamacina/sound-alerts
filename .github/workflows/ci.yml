@@ -27,7 +27,7 @@ jobs:
       - name: The Windows scripts parse
         shell: pwsh
         run: |
-          foreach ($file in 'play.ps1', 'mode.ps1') {
+          foreach ($file in 'play.ps1', 'mode.ps1', 'limit.ps1') {
             $errors = $null; $tokens = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/$file", [ref]$tokens, [ref]$errors)
             if ($errors.Count) { $errors | ForEach-Object { "${file}: $($_.Message)" }; exit 1 }
