@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitSounds, modeArgv, pickVariant, playerArgv, readSettings, testOutcome, variantsOf } from './sounds'
+import { DEFAULTS, NAMES, SOUNDS, isPresetName, isSound, isTestCommand, limitArgv, limitSounds, modeArgv, parseLimitRow, windowKey, pickVariant, playerArgv, readSettings, testOutcome, variantsOf } from './sounds'
 import type { AlertSettings, System } from './sounds'
 
 // The guidance lives in the tool's description: it reaches the model whatever other plugins do to the prompt.
@@ -26,8 +26,9 @@ let lastByClaude = 0
 const PLAYER_TIMEOUT_MS = 40_000
 let testing = false
 let promptChecked = false
-// When a limit sound was last chosen at the end of a turn: the turn that hit the limit ends as an error too, and only the limit is heard.
-let limitAt = 0
+// The turn each used-up window was said in: the turn that hits a limit ends as an error too, and only the limit is heard for it.
+const limitTurn = new Map<string, string>()
+let turnNow = ''
 /** The permission mode read for the prompts counted so far: it is written once per prompt, so one reading serves all its asks. */
 let modeSeen: { turns: number; mode: string } | undefined
 
@@ -142,6 +143,41 @@ async function readMode($: EngineInterface): Promise<string | undefined> {
   const run = await $.process.run(modeArgv(await systemOf($), $.plugin.root, file), { timeoutMs: 10_000 }).catch(() => undefined)
   const line = run?.stdout.trim().split(/\r?\n/).filter(Boolean).pop() ?? ''
   return line.startsWith('ok:') && line.length > 3 ? line.slice(3) : undefined
+}
+
+/** The used-up windows that were said (by a measure) and not yet marked with their turn get this turn. */
+function markLimits(rateLimits: { kind: string; percentUsed: number; resetsAt?: string }[]) {
+  for (const w of rateLimits) {
+    const key = windowKey(w.kind, w.resetsAt)
+    if (w.percentUsed >= 100 && fired.has(`${key}|100`) && !limitTurn.has(key)) limitTurn.set(key, turnNow)
+  }
+}
+
+/**
+ * What an error turn is: `limit` (a usage limit just rejected it: say the limit), `silent` (the limit was already said for this very
+ * turn) or `error`. No waiting: the usage the session reports and, failing that, the transcript's last reply say which.
+ * A limit already said in an earlier turn is not new: the person wrote again and it failed again, which is an error.
+ */
+async function limitVerdict($: EngineInterface, turnId: string): Promise<'limit' | 'silent' | 'error'> {
+  const decide = (key: string): 'limit' | 'silent' | 'error' => {
+    if (!fired.has(`${key}|100`)) {
+      fired.add(`${key}|100`).add(`${key}|75`)
+      limitTurn.set(key, turnId)
+      return 'limit'
+    }
+    return limitTurn.get(key) === turnId ? 'silent' : 'error'
+  }
+  const usage = await $.session.usage().catch(() => undefined)
+  const used = (usage?.rateLimits ?? []).filter(w => w.percentUsed >= 100)
+  if (used.length) {
+    const verdicts = used.map(w => decide(windowKey(w.kind, w.resetsAt)))
+    return verdicts.includes('limit') ? 'limit' : verdicts.includes('silent') ? 'silent' : 'error'
+  }
+  const file = await transcriptPath($)
+  if (!file) return 'error'
+  const run = await $.process.run(limitArgv(await systemOf($), $.plugin.root, file), { timeoutMs: 10_000 }).catch(() => undefined)
+  const key = parseLimitRow(run?.stdout ?? '')
+  return key ? decide(key) : 'error'
 }
 
 /**
@@ -377,6 +413,11 @@ export const register: Register = on => {
     return ran
   })
 
+  on('turn.start', async ($, e, next) => {
+    if (e.agentId === undefined) turnNow = e.turnId
+    return next(e)
+  })
+
   on('prompt.submit', async ($, e, next) => {
     if (e.origin.kind === 'task-notification') later($, 0, () => sound($, 'task-done', 'background task'))
     else if (!promptChecked) {
@@ -391,13 +432,11 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const reason = (e as { reason?: string }).reason
     const name = e.agentId !== undefined ? (reason === 'answer' ? 'agent-done' : '') : reason === 'answer' ? 'done' : reason === 'error' ? 'error' : reason === 'refusal' ? 'attention' : ''
-    // An error waits for the measure of the same turn: if that says the limit was just reached, the limit is the sound.
     if (name === 'error' && e.agentId === undefined) {
-      const ended = await $.clock.now()
-      later($, 1000, async () => {
-        if (limitAt >= ended - 1000) return note('error not played: the limit was just reached')
-        await sound($, name, 'turn')
-      })
+      const verdict = await limitVerdict($, e.turnId)
+      note(`error turn: ${verdict}`)
+      if (verdict === 'limit') later($, 0, () => sound($, 'limit', 'turn'))
+      else if (verdict === 'error') later($, 0, () => sound($, name, 'turn'))
     } else if (name) later($, 0, () => sound($, name, e.agentId !== undefined ? `agent ${e.agentId}` : 'turn'))
     return next(e)
   })
@@ -405,10 +444,8 @@ export const register: Register = on => {
   // The usage limits and the context window, measured after each turn.
   on('session.measure', async ($, e, next) => {
     // The measure comes with the end of the turn: a moment later, so that it does not play on top of done.
-    for (const name of limitSounds(fired, e.rateLimits, e.context.percent)) {
-      if (name === 'limit') limitAt = await $.clock.now()
-      later($, 1500, () => sound($, name, 'measure'))
-    }
+    for (const name of limitSounds(fired, e.rateLimits, e.context.percent)) later($, 1500, () => sound($, name, 'measure'))
+    markLimits(e.rateLimits)
     return next(e)
   })
 }

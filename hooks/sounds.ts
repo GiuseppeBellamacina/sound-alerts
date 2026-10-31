@@ -130,6 +130,18 @@ export function pickVariant(files: string[], last?: string, random: () => number
 
 export type RateLimit = { kind: string; percentUsed: number; resetsAt?: string }
 
+/** One window in one period: its kind and when it resets, in epoch seconds (the measure says it in ISO, the transcript in seconds). */
+export const windowKey = (kind: string, resetsAt: string | number | undefined): string => {
+  const ms = typeof resetsAt === 'number' ? resetsAt * 1000 : Date.parse(resetsAt ?? '')
+  return `${kind}|${Number.isNaN(ms) ? (resetsAt ?? '') : Math.round(ms / 1000)}`
+}
+
+/** What a transcript's last reply says of the limit (limit.ps1 / limit.sh): `five_hour|1792619400`, or none. */
+export function parseLimitRow(line: string): string | undefined {
+  const m = /ok:([A-Za-z_]+)[|]([0-9]+)/.exec(line)
+  return m ? windowKey(m[1]!, Number(m[2])) : undefined
+}
+
 /** From where on a usage window is said to be running out. Anthropic documents no number ("Approaching 5-hour limit"): 75 is the one the third-party sources give. */
 export const WARN_AT = 75
 
@@ -147,7 +159,7 @@ const warning = (kind: string) => (kind === 'five_hour' ? 'limit-5h' : kind.star
 export function limitSounds(fired: Set<string>, rateLimits: RateLimit[], contextPercent: number | undefined): string[] {
   const picks: { sound: string; marks: string[]; rank: number; percent: number }[] = []
   for (const w of rateLimits) {
-    const at = `${w.kind}|${w.resetsAt ?? ''}`
+    const at = windowKey(w.kind, w.resetsAt)
     if (w.percentUsed >= 100 && !fired.has(`${at}|100`)) {
       // Both levels are marked: reaching 100 at once does not play the warning after the limit.
       picks.push({ sound: 'limit', marks: [`${at}|100`, `${at}|${WARN_AT}`], rank: 0, percent: w.percentUsed })
@@ -169,6 +181,12 @@ export function limitSounds(fired: Set<string>, rateLimits: RateLimit[], context
 }
 
 /** The command line that reads the permission mode a transcript last recorded: a script of ours, one argument. */
+export function limitArgv(system: System, root: string, file: string): string[] {
+  return system === 'windows'
+    ? ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', `${root}/scripts/limit.ps1`, '-Path', file]
+    : ['bash', `${root}/scripts/limit.sh`, file]
+}
+
 export function modeArgv(system: System, root: string, file: string): string[] {
   return system === 'windows'
     ? ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', `${root}/scripts/mode.ps1`, '-Path', file]

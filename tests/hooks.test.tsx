@@ -17,7 +17,7 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
   const runs: string[][] = []
   const timeouts: (number | undefined)[] = []
   // The session's transcript, and the mode it last recorded: auto, default, or nothing.
-  const session = { mode: 'default', id: '2fdd950f-c860-4b16-9043-8f4a6478f907' }
+  const session = { mode: 'default', limit: '', id: '2fdd950f-c860-4b16-9043-8f4a6478f907' }
   files[`C:/Users/test/.claude/projects/some-project/${session.id}.jsonl`] = 'x'
   on('session.id', () => ({ value: session.id }) as never)
   const bundled = (path: string) => {
@@ -35,6 +35,9 @@ function engine(on: On, system: 'Windows_NT' | 'Darwin' | 'Linux' = 'Windows_NT'
     if (e.argv[0] === 'uname') return { value: { exitCode: 0, stdout: `${system}\n`, stderr: '' } } as never
     // The script that reads the mode a transcript recorded.
     if (e.argv.some(a => /mode\.(ps1|sh)$/.test(a))) return { value: { exitCode: 0, stdout: `ok:${session.mode}\n`, stderr: '' } } as never
+    // The script that reads whether the transcript's last reply was a usage limit.
+    if (e.argv.some(a => /limit\.(ps1|sh)$/.test(a))) return { value: { exitCode: 0, stdout: `ok:${session.limit}
+`, stderr: '' } } as never
     runs.push([...e.argv])
     timeouts.push(e.init?.timeoutMs)
     // Removing a folder removes what is under it.
@@ -292,22 +295,54 @@ test('the usage limits and the context window play their sounds once', async ($,
   expect(played()).toEqual(['soft/limit-5h', 'soft/context-full', 'soft/limit'])
 })
 
-test('the turn that hits the limit ends as an error too: only the limit is heard; an error after it is heard', async ($, on) => {
-  const { played, clock } = engine(on)
+test('the turn that hits the limit ends as an error too: only the limit is heard, no waiting; an error after it is heard', async ($, on) => {
+  const { played, clock, session } = engine(on)
+  let usage = [{ kind: 'five_hour', percentUsed: 40, resetsAt: '2026-11-01T06:00:00Z' }]
+  on('session.usage', () => ({ value: { context: { window: 200_000, percent: 10 }, rateLimits: usage } }) as never)
   await start($)
-  const measure = (percentUsed: number) =>
-    $.session.measure({ context: { window: 200_000, percent: 10 }, rateLimits: [{ kind: 'five_hour', percentUsed, resetsAt: 'r1' }], changed: ['rateLimits'] } as never)
-  // The error comes with the measure that says 100%, in either order.
-  await done($, { reason: 'error' })
-  await measure(100)
+  const turn = async (id: string) => $.turn.start({ text: 'go', turnId: id } as never)
+  const measure = () => $.session.measure({ context: { window: 200_000, percent: 10 }, rateLimits: usage, changed: ['rateLimits'] } as never)
+
+  // The usage says the window is used up: the limit, at once, and not the error.
+  usage = [{ kind: 'five_hour', percentUsed: 100, resetsAt: '2026-11-01T06:00:00Z' }]
+  await turn('t1')
+  await done($, { reason: 'error', turnId: 't1' })
+  await clock.advance(50)
+  expect(played()).toEqual(['soft/limit'])
+  // The measure of that turn comes later and says nothing more.
+  await measure()
   await clock.advance(3_000)
   expect(played()).toEqual(['soft/limit'])
+
   // The person writes again, the limit is already there: the error is heard.
-  await clock.advance(60_000)
-  await done($, { reason: 'error' })
-  await measure(100)
+  await turn('t2')
+  await done($, { reason: 'error', turnId: 't2' })
+  await measure()
   await clock.advance(3_000)
   expect(played()).toEqual(['soft/limit', 'soft/error'])
+
+  // The measure came first in a turn: it said the limit, and the error of the same turn is silent.
+  usage = [{ kind: 'seven_day', percentUsed: 100, resetsAt: '2026-11-03T06:00:00Z' }]
+  await turn('t3')
+  await measure()
+  await done($, { reason: 'error', turnId: 't3' })
+  await clock.advance(3_000)
+  expect(played()).toEqual(['soft/limit', 'soft/error', 'soft/limit'])
+
+  // The usage does not show it yet, the transcript's last reply does (a window and its reset in seconds).
+  usage = []
+  session.limit = 'five_hour|1792619400'
+  await turn('t4')
+  await clock.advance(2_000)
+  await done($, { reason: 'error', turnId: 't4' })
+  await clock.advance(50)
+  expect(played().at(-1)).toBe('soft/limit')
+  // Not a limit at all: an error.
+  session.limit = ''
+  await turn('t5')
+  await done($, { reason: 'error', turnId: 't5' })
+  await clock.advance(50)
+  expect(played().at(-1)).toBe('soft/error')
 })
 
 test('a limit already past its threshold is said once, at the first prompt of the session', async ($, on) => {
@@ -489,7 +524,7 @@ test('a folder of yours with files for a sound replaces the bundled files of tha
   await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as never)
   await clock.advance(2_500)
   await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't2', reason: 'error' } as never)
-  await clock.advance(1_100)
+  await clock.advance(100)
   expect(norm(runs[0]!.at(-1)!)).toBe(`${USER}/soft/done-01.mp3`)
   // error was not touched: the bundled file stays.
   expect(norm(runs[1]!.at(-1)!).endsWith('/presets/soft/error.wav')).toBe(true)
